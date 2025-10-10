@@ -1,0 +1,1 @@
+# La Troca Mobile (Kotlin Android App)

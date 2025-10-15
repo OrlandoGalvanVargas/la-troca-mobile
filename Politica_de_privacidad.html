@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Política de Privacidad – La Troca</title>
+  <meta name="description" content="Política de Privacidad de La Troca. Última actualización: 09 de octubre de 2025." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0f1724;
+      --card: rgba(255,255,255,0.04);
+      --accent-1: #7ce7d9;
+      --accent-2: #5b8cff;
+      --glass: rgba(255,255,255,0.03);
+      --muted: #9aa4b2;
+      --white: #ffffff;
+      --maxw: 980px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg,#071129 0%, #081427 60%);
+      color:var(--white);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding:2rem 1rem;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+      gap:1rem;
+      min-height:100vh;
+    }
+    .container{ width:100%; max-width:var(--maxw); margin:0 auto; }
+    header.app-hero{
+      display:flex;
+      gap:1rem;
+      align-items:center;
+      background: linear-gradient(90deg, rgba(91,140,255,0.12), rgba(124,231,217,0.06));
+      border-radius:14px;
+      padding:18px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+      margin-bottom:18px;
+    }
+    .logo {
+      width:64px;
+      height:64px;
+      border-radius:12px;
+      background: linear-gradient(135deg,var(--accent-2),var(--accent-1));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      font-size:20px;
+      color:#021025;
+      box-shadow: 0 6px 18px rgba(91,140,255,0.12);
+    }
+    .hero-text h1{ margin:0; font-size:1.3rem; line-height:1.05; }
+    .hero-text p{ margin:4px 0 0; color:var(--muted); font-size:0.95rem; }
+    main.card{
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:14px;
+      padding:20px;
+      box-shadow: 0 8px 40px rgba(2,6,23,0.6);
+      display:grid;
+      grid-template-columns: 320px 1fr;
+      gap:20px;
+    }
+    nav.toc{
+      border-radius:10px;
+      padding:12px;
+      background:var(--glass);
+      min-height:120px;
+      position:sticky;
+      top:20px;
+      height:fit-content;
+    }
+    nav.toc h3{margin:0 0 10px 0;font-size:0.95rem}
+    nav.toc ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+    nav.toc a{ color:var(--white); text-decoration:none; font-size:0.94rem; padding:8px 10px; border-radius:8px; display:block; transition:background .15s, transform .08s; }
+    nav.toc a:hover{background:rgba(255,255,255,0.02); transform:translateX(6px)}
+    section.content{ overflow:hidden; }
+    .section-card{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:12px; padding:16px; margin-bottom:14px; border:1px solid rgba(255,255,255,0.03); }
+    h2.section-title{ margin:0 0 8px 0; font-size:1.05rem; display:flex; align-items:center; gap:10px; }
+    .meta { color:var(--muted); font-size:0.9rem; margin-bottom:10px }
+    p{ color: #e6eef6; margin:0 0 10px 0; line-height:1.55; }
+    details{ background: rgba(255,255,255,0.01); border-radius:8px; padding:10px; margin:8px 0; }
+    summary{ cursor:pointer; outline:none; font-weight:600; font-size:0.98rem; list-style:none; }
+    details[open] summary::after{ content: "▲"; float:right; color:var(--muted); }
+    details summary::after{ content: "▼"; float:right; color:var(--muted); }
+    details p, details ul{ margin:8px 0 0 0; color:#dfe9f2 }
+    ul.clean{ padding-left:18px; margin:6px 0 12px 0 }
+    ul.clean li{ margin:6px 0; color:#dfe9f2 }
+    footer.page-foot{ margin-top:18px; text-align:center; color:var(--muted); font-size:0.9rem; padding:14px 6px; }
+    @media (max-width:900px){
+      main.card{ grid-template-columns: 1fr; padding:14px }
+      nav.toc{ order:2; display:flex; gap:8px; overflow:auto; }
+      nav.toc ul{flex-direction:row}
+      nav.toc a{ white-space:nowrap; padding:8px 12px }
+      header.app-hero{ flex-direction:row; gap:12px }
+    }
+    @media (max-width:470px){
+      body{ padding:1rem }
+      .logo{ width:52px; height:52px; font-size:18px }
+      .hero-text h1{ font-size:1.05rem }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="app-hero" role="banner">
+      <div class="logo" aria-hidden="true">LT</div>
+      <div class="hero-text">
+        <h1>Política de Privacidad — La Troca</h1>
+        <p>Última actualización: <strong>09 de octubre de 2025</strong></p>
+      </div>
+    </header>
+
+    <main class="card" role="main" aria-labelledby="main-heading">
+      <nav class="toc" aria-label="Índice de la política">
+        <h3>Índice</h3>
+        <ul>
+          <li><a href="#responsable">Responsable</a></li>
+          <li><a href="#aceptacion">Aceptación</a></li>
+          <li><a href="#info">Información Recopilada</a></li>
+          <li><a href="#finalidades">Finalidades</a></li>
+          <li><a href="#base-legal">Base Legal</a></li>
+          <li><a href="#anon">Anonimización</a></li>
+          <li><a href="#compartir">Compartición</a></li>
+          <li><a href="#transferencias">Transferencias</a></li>
+          <li><a href="#derechos">Derechos</a></li>
+          <li><a href="#seguridad">Seguridad</a></li>
+          <li><a href="#conservacion">Conservación</a></li>
+          <li><a href="#menores">Menores</a></li>
+          <li><a href="#cambios">Cambios</a></li>
+          <li><a href="#contacto">Contacto</a></li>
+        </ul>
+      </nav>
+
+      <section class="content">
+        <!-- RESPONSABLE -->
+        <article id="responsable" class="section-card">
+          <h2 class="section-title">Responsable del Tratamiento</h2>
+          <p class="meta">Identidad</p>
+          <p>Esta Política de Privacidad corresponde a la aplicación móvil <strong>La Troca</strong>. La presente se emite en cumplimiento de la <strong>LFPDPPP (México)</strong> y se alinea con el <strong>GDPR (UE)</strong> y <strong>CCPA/CPRA (EE.UU.)</strong>.</p>
+          <p>Correo oficial: <a href="mailto:privacidad.latroca@gmail.com">privacidad.latroca@gmail.com</a></p>
+        </article>
+
+        <!-- ACEPTACIÓN -->
+        <article id="aceptacion" class="section-card">
+          <h2 class="section-title">Aceptación de los Términos</h2>
+          <p class="meta">Uso de la Aplicación</p>
+          <p>Al descargar, instalar o utilizar la Aplicación usted manifiesta haber leído y aceptado esta Política. Si no está de acuerdo con alguno de los términos, le recomendamos no utilizar la Aplicación.</p>
+          <p>El usuario puede revocar su aceptación en cualquier momento desde la sección de ajustes de la app o mediante contacto con <a href="mailto:privacidad.latroca@gmail.com">privacidad.latroca@gmail.com</a>.</p>
+        </article>
+
+        <!-- INFO -->
+        <article id="info" class="section-card">
+          <h2 class="section-title">Información que Recopilamos</h2>
+          <p class="meta">Tipos de datos</p>
+          <details>
+            <summary>Información facilitada por usted</summary>
+            <ul class="clean">
+              <li><strong>Datos de registro:</strong> nombre, correo electrónico, foto de perfil, ubicación aproximada o exacta si da permiso.</li>
+              <li><strong>Perfil:</strong> descripción, intereses, productos o servicios ofrecidos/buscados.</li>
+              <li><strong>Contenido generado:</strong> fotos, descripciones, publicaciones y mensajes en el chat interno.</li>
+              <li><strong>Comunicaciones:</strong> reportes, consultas al soporte y feedback.</li>
+            </ul>
+          </details>
+          <details>
+            <summary>Información recopilada automáticamente</summary>
+            <ul class="clean">
+              <li><strong>Datos de uso:</strong> frecuencia de acceso, funciones utilizadas, tiempo de permanencia.</li>
+              <li><strong>Dispositivo:</strong> modelo, sistema operativo, ID de dispositivo, dirección IP.</li>
+              <li><strong>Ubicación:</strong> coordenadas GPS solo cuando se otorga consentimiento explícito.</li>
+            </ul>
+          </details>
+          <details>
+            <summary>Información de terceros</summary>
+            <p>Si inicia sesión con Google o Facebook, recibimos información básica (nombre, correo, foto) para crear/verificar su cuenta.</p>
+          </details>
+        </article>
+
+        <!-- FINALIDADES -->
+        <article id="finalidades" class="section-card">
+          <h2 class="section-title">Finalidades del Tratamiento</h2>
+          <details>
+            <summary>Finalidades principales (necesarias)</summary>
+            <ul class="clean">
+              <li>Crear y administrar su cuenta.</li>
+              <li>Permitir publicar, buscar y gestionar trueques.</li>
+              <li>Mostrar perfil y publicaciones y habilitar chat interno.</li>
+              <li>Moderación de contenido usando IA (DeepAI) para detectar material inapropiado o fraudulento.</li>
+              <li>Garantizar seguridad, rendimiento y estabilidad de la app.</li>
+            </ul>
+          </details>
+          <details>
+            <summary>Finalidades secundarias (opcionales, requieren consentimiento explícito)</summary>
+            <ul class="clean">
+              <li>Enviar notificaciones o comunicaciones informativas/comerciales.</li>
+              <li>Analizar datos agregados para mejorar funcionalidades.</li>
+              <li>Generar reportes estadísticos anonimizados.</li>
+            </ul>
+          </details>
+        </article>
+
+        <!-- BASE LEGAL -->
+        <article id="base-legal" class="section-card">
+          <h2 class="section-title">Base Legal</h2>
+          <p class="meta">GDPR / LFPDPPP</p>
+          <ul class="clean">
+            <li>Ejecución de un contrato: prestación del servicio.</li>
+            <li>Consentimiento explícito: para datos opcionales como ubicación precisa y comunicaciones comerciales.</li>
+            <li>Interés legítimo: prevención de fraude, seguridad y mejora del servicio. Se realiza un balance de intereses que protege sus derechos fundamentales.</li>
+            <li>Obligación legal: cuando aplique.</li>
+          </ul>
+        </article>
+
+        <!-- ANONIMIZACIÓN -->
+        <article id="anon" class="section-card">
+          <h2 class="section-title">Anonimización y Seguridad</h2>
+          <details>
+            <summary>Técnicas aplicadas</summary>
+            <ul class="clean">
+              <li>Seudonimización de identificadores en sistemas internos.</li>
+              <li>Datos agregados y anonimizados para análisis estadísticos.</li>
+              <li>Eliminación segura e irreversible tras solicitud o cierre de cuenta.</li>
+            </ul>
+          </details>
+          <details>
+            <summary>Medidas de seguridad</summary>
+            <ul class="clean">
+              <li>Cifrado HTTPS/TLS en tránsito y en reposo.</li>
+              <li>Control de acceso por roles y autenticación de dos factores para personal autorizado.</li>
+              <li>Auditorías y revisiones periódicas de seguridad.</li>
+            </ul>
+          </details>
+        </article>
+
+        <!-- COMPARTICIÓN -->
+        <article id="compartir" class="section-card">
+          <h2 class="section-title">Compartición de Datos</h2>
+          <details>
+            <summary>Con otros usuarios</summary>
+            <p>Su nombre, foto de perfil y ubicación general (ej. “a 2 km”) pueden ser visibles para facilitar el trueque. El contenido que publique será accesible dentro de la app.</p>
+          </details>
+          <details>
+            <summary>Con proveedores y servicios</summary>
+            <ul class="clean">
+              <li>Google Firebase / Google Cloud Platform: almacenamiento, autenticación, notificaciones push.</li>
+              <li>DeepAI: moderación automática de imágenes.</li>
+              <li>Google Analytics: datos agregados y anónimos.</li>
+            </ul>
+          </details>
+          <details>
+            <summary>Por obligaciones legales</summary>
+            <p>Podremos divulgar datos ante requerimientos legales, orden judicial o para proteger derechos y seguridad.</p>
+          </details>
+        </article>
+
+        <!-- TRANSFERENCIAS -->
+        <article id="transferencias" class="section-card">
+          <h2 class="section-title">Transferencias Internacionales</h2>
+          <p>Sus datos pueden alojarse en servidores fuera de México (incluidos Estados Unidos). Aplicamos Cláusulas Contractuales Estándar y otras garantías legales reconocidas.</p>
+        </article>
+
+        <!-- DERECHOS -->
+        <article id="derechos" class="section-card">
+          <h2 class="section-title">Derechos del Usuario</h2>
+          <p class="meta">ARCO / GDPR</p>
+          <ul class="clean">
+            <li>Acceso, Rectificación, Cancelación/Supresión, Oposición, Portabilidad, Retirar consentimiento.</li>
+          </ul>
+          <p>Para ejercerlos, envíe un correo a <a href="mailto:privacidad.latroca@gmail.com">privacidad.latroca@gmail.com</a> indicando: nombre completo, medio para recibir respuesta y solicitud detallada. Responderemos dentro de <strong>30 días hábiles</strong>.</p>
+        </article>
+
+        <!-- SEGURIDAD -->
+        <article id="seguridad" class="section-card">
+          <h2 class="section-title">Seguridad</h2>
+          <ul class="clean">
+            <li>Cifrado HTTPS/TLS en todas las comunicaciones.</li>
+            <li>Control de accesos y autenticación de dos factores para personal autorizado.</li>
+            <li>Revisiones periódicas de seguridad y pruebas de vulnerabilidad.</li>
+            <li>Políticas internas de gestión y acceso a datos.</li>
+          </ul>
+        </article>
+
+        <!-- CONSERVACIÓN -->
+        <article id="conservacion" class="section-card">
+          <h2 class="section-title">Conservación de los Datos</h2>
+          <ul class="clean">
+            <li><strong>Datos de cuenta:</strong> mientras la cuenta esté activa. Si un usuario solicita eliminación de su cuenta, esta se desactiva inmediatamente y se elimina permanentemente tras 30 días.</li>
+            <li><strong>Contenido de publicaciones:</strong> hasta eliminación por el usuario o tras desactivación.</li>
+            <li><strong>Chats:</strong> hasta 12 meses para investigación de incidencias.</li>
+            <li><strong>Datos anonimizados:</strong> pueden conservarse indefinidamente.</li>
+          </ul>
+        </article>
+
+        <!-- MENORES -->
+        <article id="menores" class="section-card">
+          <h2 class="section-title">Menores de Edad</h2>
+          <p>La Troca no está dirigida a menores de <strong>16 años</strong>. No recopilamos datos personales de menores a propósito. Padres o tutores pueden solicitar eliminación inmediata a <a href="mailto:privacidad.latroca@gmail.com">privacidad.latroca@gmail.com</a>.</p>
+        </article>
+
+        <!-- CAMBIOS -->
+        <article id="cambios" class="section-card">
+          <h2 class="section-title">Cambios en esta Política</h2>
+          <p>Podemos modificar esta Política en cualquier momento (ej. cambios regulatorios o nuevos servicios). Notificaremos cambios significativos a través de la Aplicación o por correo. El uso continuado constituye aceptación de la versión actualizada.</p>
+        </article>
+
+        <!-- CONTACTO -->
+        <article id="contacto" class="section-card">
+          <h2 class="section-title">Contacto</h2>
+          <p>Para dudas, solicitudes ARCO/GDPR, reclamaciones o cualquier asunto relacionado con sus datos, contacte: <a href="mailto:privacidad.latroca@gmail.com">privacidad.latroca@gmail.com</a></p>
+        </article>
+
+        <!-- AVISO LEGAL -->
+        <article class="section-card">
+          <h2 class="section-title">Aviso Legal</h2>
+          <p>Esta Política ha sido redactada conforme a la <strong>LFPDPPP</strong> (México) y el <strong>GDPR</strong> (UE). © 2025 <strong>La Troca</strong>.</p>
+        </article>
+
+        <footer class="page-foot">© 2025 <strong>La Troca</strong> — Última actualización: 09 de octubre de 2025</footer>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

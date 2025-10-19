@@ -3,45 +3,76 @@ package com.example.latroca
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.latroca.data.repository.AuthRepository
+import com.example.latroca.ui.screens.*
 import com.example.latroca.ui.theme.LaTrocaTheme
+import com.example.latroca.ui.viewmodels.AuthViewModel
+import com.example.latroca.ui.viewmodels.RegistrationViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
         setContent {
             LaTrocaTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    val navController = rememberNavController()
+                    val authRepository = remember { AuthRepository() }
+
+                    val authViewModel = remember { AuthViewModel(authRepository) }
+                    val registrationViewModel = remember { RegistrationViewModel(authRepository) }
+
+                    NavHost(
+                        navController = navController,
+                        startDestination = "login"
+                    ) {
+                        composable("login") {
+                            LoginScreen(
+                                navController = navController,
+                                authViewModel = authViewModel
+                            )
+                        }
+
+                        composable("register") {
+                            RegisterScreen(
+                                navController = navController,
+                                registrationViewModel = registrationViewModel
+                            )
+                        }
+
+                        composable("completeProfile") {
+                            CompleteProfileScreen(
+                                navController = navController,
+                                registrationViewModel = registrationViewModel
+                            )
+                        }
+
+                        composable("home") {
+                            HomeScreen(
+                                onLogout = {
+                                    // Resetear estados al hacer logout
+                                    authViewModel.resetLoginState()
+                                    registrationViewModel.resetState()
+                                    navController.navigate("login") {
+                                        popUpTo(0)
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    LaTrocaTheme {
-        Greeting("Android")
     }
 }

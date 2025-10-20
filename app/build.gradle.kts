@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -23,7 +24,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -51,6 +53,18 @@ android {
 }
 
 dependencies {
+    // Dependencias faltantes
+    implementation("androidx.credentials:credentials:1.6.0-beta01")
+    implementation("androidx.credentials:credentials-play-services-auth:1.6.0-beta01")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
+    implementation("androidx.compose.ui:ui-android:1.7.0") //LocalContext
+    implementation("androidx.activity:activity-compose:1.9.0") //setContent
+
+    implementation(platform("com.google.firebase:firebase-bom:34.4.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation(libs.androidx.core.ktx)
+
 
     // Core & Lifecycle
     implementation("androidx.core:core-ktx:1.12.0")

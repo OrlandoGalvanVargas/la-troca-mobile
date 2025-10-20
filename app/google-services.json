@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "258747975411",
+    "project_id": "la-troca-ed2d2",
+    "storage_bucket": "la-troca-ed2d2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:258747975411:android:42651e098abf70bef0d986",
+        "android_client_info": {
+          "package_name": "com.example.latroca"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "258747975411-p6dc4pjt8a24ldjnhbj2b1rsukr11437.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.latroca",
+            "certificate_hash": "d5e8e5a38f20ba6bb24fc3db5051e89fc5a5fcaa"
+          }
+        },
+        {
+          "client_id": "258747975411-65uhuukj0fli077uej4do6lv6j6cjg36.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZYRcG-NXdHF9ur5HbZ1pdkEhMXphI988"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "258747975411-65uhuukj0fli077uej4do6lv6j6cjg36.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

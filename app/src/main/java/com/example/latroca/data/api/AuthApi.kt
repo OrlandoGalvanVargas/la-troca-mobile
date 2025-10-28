@@ -23,6 +23,9 @@ interface AuthApi {
         @Part("Password") password: RequestBody,
         @Part("Rol") rol: RequestBody,
         @Part("Bio") bio: RequestBody,
+        @Part("Location.Manual") ubicacionManual: RequestBody,
+        @Part("Location.Latitude") latitude: RequestBody,
+        @Part("Location.Longitude") longitude: RequestBody,
         @Part imagenPerfil: MultipartBody.Part?
     ): Response<AuthResponse>
 

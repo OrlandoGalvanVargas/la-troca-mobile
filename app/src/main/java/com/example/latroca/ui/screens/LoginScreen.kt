@@ -2,7 +2,6 @@ package com.example.latroca.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -22,7 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -31,14 +29,11 @@ import com.example.latroca.ui.viewmodels.AuthViewModel
 import com.example.latroca.domain.models.AuthResult
 import kotlinx.coroutines.launch
 
-// dominios de correo permitiodos
-private fun isValidEmailDomain(domain: String): Boolean {
-    val allowedDomains = listOf(
-        "gmail.com", "google.com", "hotmail.com", "outlook.com", "yahoo.com",
-        "uttt.edu.mx"
-    )
-    return allowedDomains.any { domain.equals(it, ignoreCase = true) }
+private fun isValidGeneralDomain(domain: String): Boolean {
+    val domainRegex = Regex("^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z]{2,})+$")
+    return domainRegex.matches(domain)
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,11 +70,12 @@ fun LoginScreen(
                 email.split("@")[1].isEmpty() -> "Falta el dominio después del @"
                 email.split("@")[0].length > 30 -> "Máximo 30 caracteres antes del @"
                 email.length > 64 -> "Máximo 64 caracteres en total"
-                email.contains("@") && !isValidEmailDomain(email.split("@")[1]) -> "Dominio de correo no válido"
+                !isValidGeneralDomain(email.split("@")[1]) -> "Dominio de correo no válido"
                 else -> ""
             }
         }
     }
+
 
     val isFormValid by remember(email, password, emailError) {
         derivedStateOf {

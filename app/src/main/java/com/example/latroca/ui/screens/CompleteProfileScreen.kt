@@ -42,8 +42,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-// Función para obtener ubicación
-private fun getRealLocation(context: android.content.Context, onLocationResult: (String?) -> Unit) {
+private fun getRealLocation(context: android.content.Context, onLocationResult: (String?, Double, Double) -> Unit) {
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
     val locationRequest = LocationRequest.Builder(
         Priority.PRIORITY_HIGH_ACCURACY,
@@ -76,15 +75,15 @@ private fun getRealLocation(context: android.content.Context, onLocationResult: 
                                 append("${location.latitude}, ${location.longitude}")
                             }
                         }
-                        onLocationResult(locationName)
+                        onLocationResult(locationName, location.latitude, location.longitude)
                     } else {
-                        onLocationResult("${location.latitude}, ${location.longitude}")
+                        onLocationResult("${location.latitude}, ${location.longitude}", location.latitude, location.longitude)
                     }
                 } catch (e: Exception) {
-                    onLocationResult("${location.latitude}, ${location.longitude}")
+                    onLocationResult("${location.latitude}, ${location.longitude}", location.latitude, location.longitude)
                 }
             } ?: run {
-                onLocationResult("No se pudo obtener ubicación")
+                onLocationResult("No se pudo obtener ubicación", 0.0, 0.0)
             }
             fusedLocationClient.removeLocationUpdates(this)
         }
@@ -105,7 +104,7 @@ private fun getRealLocation(context: android.content.Context, onLocationResult: 
             android.os.Looper.getMainLooper()
         )
     } else {
-        onLocationResult("Permisos de ubicación no concedidos")
+        onLocationResult("Permisos de ubicación no concedidos", 0.0, 0.0)
     }
 }
 
@@ -125,8 +124,9 @@ fun CompleteProfileScreen(
 
     var isGettingLocation by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf<String?>(null) }
+    var latitude by remember { mutableStateOf(0.0) }
+    var longitude by remember { mutableStateOf(0.0) }
 
-    // Variables para validacion
     var bioError by remember { mutableStateOf("") }
     var ubicacionError by remember { mutableStateOf("") }
     var bioTouched by remember { mutableStateOf(false) }
@@ -190,7 +190,7 @@ fun CompleteProfileScreen(
 
     LaunchedEffect(Unit) {
         registrationViewModel.clearErrors()
-        registrationViewModel.updateStep2Data("", null)
+        registrationViewModel.updateStep2Data("", "", 0.0, 0.0, null)
 
         delay(1000)
 
@@ -228,14 +228,17 @@ fun CompleteProfileScreen(
         if (fineLocationGranted || coarseLocationGranted) {
             isGettingLocation = true
             locationError = null
-            getRealLocation(context) { location ->
+            getRealLocation(context) { locationName, lat, lon ->
                 isGettingLocation = false
-                location?.let {
-                    ubicacion = it
-                    ubicacionTouched = true
-                    ubicacionError = validateUbicacionRealTime(it)
-                } ?: run {
+                if (locationName != null && lat != 0.0 && lon != 0.0) {
+                    ubicacion = locationName
+                    latitude = lat
+                    longitude = lon
+                    ubicacionError = validateUbicacionRealTime(locationName)
+                } else {
                     locationError = "No se pudo obtener la ubicación"
+                    latitude = 0.0
+                    longitude = 0.0
                 }
             }
         } else {
@@ -250,7 +253,7 @@ fun CompleteProfileScreen(
     ) { success ->
         if (success) {
             selectedImageUri = photoUri
-            registrationViewModel.updateStep2Data(bio, selectedImageUri)
+            registrationViewModel.updateStep2Data(bio, ubicacion, latitude, longitude, selectedImageUri)
         }
     }
 
@@ -259,7 +262,7 @@ fun CompleteProfileScreen(
     ) { uri: Uri? ->
         uri?.let {
             selectedImageUri = it
-            registrationViewModel.updateStep2Data(bio, selectedImageUri)
+            registrationViewModel.updateStep2Data(bio, ubicacion, latitude, longitude, selectedImageUri)
         }
     }
 
@@ -287,13 +290,18 @@ fun CompleteProfileScreen(
         if (hasFineLocationPermission && hasCoarseLocationPermission) {
             isGettingLocation = true
             locationError = null
-            getRealLocation(context) { location ->
+            getRealLocation(context) { locationName, lat, lon ->
                 isGettingLocation = false
-                location?.let {
-                    ubicacion = it
-                    ubicacionError = validateUbicacionRealTime(it)
-                } ?: run {
+                if (locationName != null && lat != 0.0 && lon != 0.0) {
+                    ubicacion = locationName
+                    latitude = lat
+                    longitude = lon
+                    ubicacionError = validateUbicacionRealTime(locationName)
+
+                } else {
                     locationError = "No se pudo obtener la ubicación"
+                    latitude = 0.0
+                    longitude = 0.0
                 }
             }
         } else {
@@ -306,9 +314,8 @@ fun CompleteProfileScreen(
         }
     }
 
-    // Actualizar ViewModel cuando cambien los datos
-    LaunchedEffect(bio, selectedImageUri) {
-        registrationViewModel.updateStep2Data(bio, selectedImageUri)
+    LaunchedEffect(bio, ubicacion, latitude, longitude, selectedImageUri) {
+        registrationViewModel.updateStep2Data(bio, ubicacion, latitude, longitude, selectedImageUri)
     }
 
     // Manejo de estados del ViewModel
@@ -338,7 +345,6 @@ fun CompleteProfileScreen(
         AlertDialog(
             onDismissRequest = {
                 showNotificationPermissionDialog = false
-                // El usuario puede decidir no activarlas ahora
             },
             title = {
                 Text(
@@ -365,7 +371,6 @@ fun CompleteProfileScreen(
                 Button(
                     onClick = {
                         showNotificationPermissionDialog = false
-                        // Solicitar el permiso real
                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -789,13 +794,18 @@ fun CompleteProfileScreen(
                     bioError = validateBioRealTime(bio)
                     ubicacionError = validateUbicacionRealTime(ubicacion)
 
-                    if (isFormValid()) {
-                        registrationViewModel.completeRegistration()
+                    if (isFormValid() && latitude != 0.0 && longitude != 0.0) {
+                        registrationViewModel.completeRegistration(context)
                     } else {
                         coroutineScope.launch {
+                            val errorMessage = if (latitude == 0.0 && longitude == 0.0) {
+                                "Error: No se pudieron obtener las coordenadas GPS. Usa el botón de GPS nuevamente."
+                            } else {
+                                "Por favor completa correctamente todos los campos"
+                            }
                             snackbarHostState.showSnackbar(
-                                "Por favor completa correctamente todos los campos",
-                                duration = SnackbarDuration.Short
+                                errorMessage,
+                                duration = SnackbarDuration.Long
                             )
                         }
                     }

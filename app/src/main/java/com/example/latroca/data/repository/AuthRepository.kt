@@ -31,6 +31,9 @@ class AuthRepository {
         email: String,
         password: String,
         bio: String,
+        ubicacion: String,
+        latitude: Double,
+        longitude: Double,
         imageFile: File? = null
     ): AuthResult<String> = withContext(Dispatchers.IO) {
         try {
@@ -42,6 +45,9 @@ class AuthRepository {
                 password = password.toRequestBody(),
                 rol = "USER".toRequestBody(),
                 bio = bio.toRequestBody(),
+                ubicacionManual = ubicacion.toRequestBody(),
+                latitude = latitude.toString().toRequestBody(),
+                longitude = longitude.toString().toRequestBody(),
                 imagenPerfil = imagenPerfilPart
             )
 
@@ -71,13 +77,17 @@ class AuthRepository {
             AuthResult.Error(errorMessage)
         }
 
-    private fun handleLoginResponse(response: Response<AuthResponse>): AuthResult<String> =
-        if (response.isSuccessful) {
-            val token = response.body()?.token
+    private fun handleLoginResponse(response: Response<AuthResponse>): AuthResult<String> {
+
+
+        return if (response.isSuccessful) {
+            val authResponse = response.body()
+            val token = authResponse?.effectiveToken
+
             if (!token.isNullOrBlank()) {
                 AuthResult.Success(token)
             } else {
-                AuthResult.Error("Credenciales inválidas")
+                AuthResult.Error("Credenciales inválidas - token no recibido")
             }
         } else {
             val errorMessage = when (response.code()) {
@@ -88,6 +98,7 @@ class AuthRepository {
             }
             AuthResult.Error(errorMessage)
         }
+    }
 
     private fun File?.toFormDataPart(fieldName: String): MultipartBody.Part? =
         this?.let { file ->

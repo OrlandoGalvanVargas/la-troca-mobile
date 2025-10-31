@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,6 +34,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.latroca.domain.models.AuthResult
 import com.google.android.gms.location.*
 import com.example.latroca.ui.components.ImagePickerDialog
 import com.example.latroca.ui.viewmodels.RegistrationViewModel
@@ -135,6 +137,9 @@ fun CompleteProfileScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     var showSuccessAlert by remember { mutableStateOf(false) }
+    // 🆕 Estado para error de imagen inapropiada
+    var showImageErrorDialog by remember { mutableStateOf(false) }
+    var imageErrorMessage by remember { mutableStateOf("") }
 
     var showNotificationPermissionDialog by remember { mutableStateOf(false) }
     var hasNotificationPermission by remember {
@@ -157,6 +162,43 @@ fun CompleteProfileScreen(
                     duration = SnackbarDuration.Short
                 )
             }
+        }
+    }
+
+    val registrationData by registrationViewModel.registrationData.collectAsState()
+
+    LaunchedEffect(registrationData.imageUri) {
+        selectedImageUri = registrationData.imageUri
+    }
+
+    // 🆕 Manejo de estados del ViewModel (SUCCESS y ERROR)
+    LaunchedEffect(uiState) {
+        when (uiState) {
+            is AuthResult.Success -> {
+                showSuccessAlert = true
+            }
+            is AuthResult.Error -> {
+                val errorMessage = (uiState as AuthResult.Error).message
+
+                // 🔍 Detectar si es error de imagen inapropiada
+                if (errorMessage.contains("imagen", ignoreCase = true) &&
+                    errorMessage.contains("apropiada", ignoreCase = true)) {
+
+                    imageErrorMessage = errorMessage
+                    showImageErrorDialog = true
+                } else {
+                    // Otros errores genéricos
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(
+                            message = errorMessage,
+                            duration = SnackbarDuration.Long
+                        )
+                    }
+                }
+
+                registrationViewModel.clearErrors()
+            }
+            else -> {}
         }
     }
 
@@ -328,6 +370,7 @@ fun CompleteProfileScreen(
                 val errorMessage = (uiState as com.example.latroca.domain.models.AuthResult.Error).message
 
                 val relevantErrors = listOf("biografía", "foto", "perfil", "registro", "completar", "ubicación")
+               /*
                 if (relevantErrors.any { errorMessage.contains(it, ignoreCase = true) }) {
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar(
@@ -336,6 +379,7 @@ fun CompleteProfileScreen(
                         )
                     }
                 }
+                */
             }
             else -> {}
         }
@@ -392,6 +436,70 @@ fun CompleteProfileScreen(
         )
     }
 
+    if (showImageErrorDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showImageErrorDialog = false
+                registrationViewModel.clearErrors()
+            },
+            title = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Advertencia",
+                        tint = Color(0xFFE53E3E),
+                        modifier = Modifier.size(60.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Imagen No Apropiada",
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp,
+                        color = Color(0xFFE53E3E)
+                    )
+                }
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Por favor, selecciona una imagen diferente para tu perfil.",
+                        textAlign = TextAlign.Center,
+                        fontSize = 14.sp,
+                        color = Color(0xFF718096)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showImageErrorDialog = false
+                        // Limpiar la imagen seleccionada
+                        selectedImageUri = null
+                        registrationViewModel.updateStep2Data(bio, ubicacion, latitude, longitude, null)
+                        registrationViewModel.clearErrors()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE53E3E)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Seleccionar otra imagen")
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    // Modal de éxito (ya lo tienes)
     if (showSuccessAlert) {
         var countdown by remember { mutableStateOf(3) }
 
@@ -409,9 +517,7 @@ fun CompleteProfileScreen(
         }
 
         AlertDialog(
-            onDismissRequest = {
-                // No permitir cerrar haciendo clic fuera de
-            },
+            onDismissRequest = { },
             confirmButton = {
                 Button(
                     onClick = {

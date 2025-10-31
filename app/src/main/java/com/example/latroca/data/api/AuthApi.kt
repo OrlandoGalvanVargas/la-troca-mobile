@@ -1,11 +1,15 @@
 package com.example.latroca.data.api
 
 import com.example.latroca.data.models.AuthResponse
+import com.example.latroca.data.models.DeactivateAccountRequest
 import com.example.latroca.data.models.LoginRequest
+import com.example.latroca.data.models.UserProfileResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
@@ -29,6 +33,26 @@ interface AuthApi {
         @Part imagenPerfil: MultipartBody.Part?
     ): Response<AuthResponse>
 
+    @POST("api/Auth/deactivate-account")
+    suspend fun deactivateAccount(
+        @Header("Authorization") token: String,
+        @Body request: DeactivateAccountRequest
+    ): Response<AuthResponse>
+
+    @GET("api/Auth/profile")
+    suspend fun getUserProfile(
+        @Header("Authorization") token: String
+    ): Response<UserProfileResponse>
+
     @POST("api/Auth/logout")
     suspend fun logout(): Response<AuthResponse>
+
+    // En AuthApi.kt
+    @POST("api/Auth/login-google")
+    suspend fun loginWithGoogle(@Body request: GoogleLoginRequest): Response<AuthResponse>
+
+    // DTO
+    data class GoogleLoginRequest(
+        val idToken: String
+    )
 }

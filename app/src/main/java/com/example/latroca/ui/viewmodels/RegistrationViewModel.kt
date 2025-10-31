@@ -1,21 +1,27 @@
 package com.example.latroca.ui.viewmodels
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.latroca.data.repository.AuthRepository
 import com.example.latroca.domain.models.AuthResult
 import com.example.latroca.domain.models.RegistrationData
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
 import java.io.File
+import java.net.URL
 
-
-class RegistrationViewModel(private val authRepository: AuthRepository) : ViewModel() {
+class RegistrationViewModel(private val authRepository: AuthRepository, private val authViewModel: AuthViewModel) : ViewModel() {
 
     private val _registrationData = MutableStateFlow(RegistrationData())
     val registrationData: StateFlow<RegistrationData> = _registrationData.asStateFlow()
@@ -29,12 +35,11 @@ class RegistrationViewModel(private val authRepository: AuthRepository) : ViewMo
             nombre = nombre,
             email = email,
             password = password
-
         )
     }
 
     // Guardar datos del paso 2 (perfil)
-    fun updateStep2Data(bio: String,ubicacionManual: String, lat: Double, lon: Double,imageUri: Uri?) {
+    fun updateStep2Data(bio: String, ubicacionManual: String, lat: Double, lon: Double, imageUri: Uri?) {
         _registrationData.value = _registrationData.value.copy(
             bio = bio,
             ubicacion = ubicacionManual,
@@ -63,10 +68,16 @@ class RegistrationViewModel(private val authRepository: AuthRepository) : ViewMo
         viewModelScope.launch {
             try {
                 val imageFile = data.imageUri?.let { uri ->
-                    convertUriToFile(uri, context)
+                    // Verificar si es una URL de internet (Google) o una URI local
+                    if (uri.toString().startsWith("http://") || uri.toString().startsWith("https://")) {
+                        downloadImageFromUrl(uri.toString(), context)
+                    } else {
+                        convertUriToFile(uri, context)
+                    }
                 }
 
-                val result = authRepository.register(
+                // 1️⃣ Registrar en el backend
+                val registerResult = authRepository.register(
                     nombre = data.nombre,
                     email = data.email,
                     password = data.password,
@@ -77,11 +88,57 @@ class RegistrationViewModel(private val authRepository: AuthRepository) : ViewMo
                     imageFile = imageFile
                 )
 
-                _uiState.value = result
+                // 2️⃣ Si el registro fue exitoso, hacer login automático para obtener el token
+                if (registerResult is AuthResult.Success) {
+                    Log.d("RegistrationVM", "Registro exitoso, iniciando login automático...")
+
+                    // 🔑 Usar AuthViewModel.login() para que guarde el token correctamente
+                    authViewModel.login(data.email, data.password)
+
+                    // Esperar un poco a que se complete el login
+                    delay(1500)
+
+                    // Verificar si el token se guardó
+                    val token = authViewModel.getToken()
+                    if (token != null) {
+                        Log.d("RegistrationVM", "Token obtenido exitosamente")
+                        _uiState.value = AuthResult.Success("Registro completado y sesión iniciada")
+                    } else {
+                        Log.e("RegistrationVM", "No se pudo obtener el token")
+                        _uiState.value = AuthResult.Success("Registro completado")
+                    }
+                } else {
+                    _uiState.value = registerResult
+                }
 
             } catch (e: Exception) {
                 _uiState.value = AuthResult.Error(e.message ?: "Error en el registro")
             }
+        }
+    }
+
+    // 🆕 Nueva función para descargar imagen de URL (Google)
+    private suspend fun downloadImageFromUrl(imageUrl: String, context: android.content.Context): File? = withContext(Dispatchers.IO) {
+        try {
+            Log.d("RegistrationVM", "Descargando imagen de Google: $imageUrl")
+
+            val url = URL(imageUrl)
+            val connection = url.openConnection()
+            connection.connect()
+
+            val file = File.createTempFile("google_profile_image", ".jpg", context.cacheDir)
+
+            connection.getInputStream().use { input ->
+                file.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            Log.d("RegistrationVM", "Imagen descargada exitosamente: ${file.absolutePath}")
+            file
+        } catch (e: Exception) {
+            Log.e("RegistrationVM", "Error descargando imagen de Google: ${e.message}")
+            null
         }
     }
 
@@ -98,6 +155,7 @@ class RegistrationViewModel(private val authRepository: AuthRepository) : ViewMo
 
             file
         } catch (e: Exception) {
+            Log.e("RegistrationVM", "Error convirtiendo URI a File: ${e.message}")
             null
         }
     }

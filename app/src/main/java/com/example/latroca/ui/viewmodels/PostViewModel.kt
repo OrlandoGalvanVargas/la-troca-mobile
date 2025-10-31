@@ -159,4 +159,9 @@ class PostViewModel(
             }
         }
     }
+
+    // 🆕 Función para limpiar posts
+    fun clearPosts() {
+        _posts.value = emptyList()
+    }
 }

@@ -147,16 +147,9 @@ fun RegisterScreen(
         Spacer(modifier = Modifier.height(80.dp))
 
         Image(
-            painter = painterResource(id = R.drawable.cloud_icon),
+            painter = painterResource(id = R.drawable.la_troca_logo),
             contentDescription = "Logo La Troca",
-            modifier = Modifier.size(90.dp)
-        )
-
-        Text(
-            text = "La Troca",
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp,
-            color = Color(0xFF90A4AE)
+            modifier = Modifier.size(120.dp)
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -442,8 +435,9 @@ fun RegisterScreen(
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.clickable {
-                    // Agregar navegacion a los términos de servicio
-                }
+                    val intent = Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://orlandogalvanvargas.github.io/la-troca-mobile-terminos-de-servicio/"))
+                    context.startActivity(intent)                }
             )
             Text(
                 text = " y ",
@@ -508,7 +502,7 @@ fun RegisterScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(15.dp))
 
         Row(
             horizontalArrangement = Arrangement.Center,

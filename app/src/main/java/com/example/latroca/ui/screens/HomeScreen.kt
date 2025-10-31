@@ -12,8 +12,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,8 +32,10 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.latroca.R
+import com.example.latroca.data.models.UserProfileResponse
 import com.example.latroca.ui.viewmodels.AuthViewModel
 import com.example.latroca.ui.viewmodels.PostViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,11 +47,17 @@ fun HomeScreen(
 ) {
     val publicaciones by postViewModel.posts.collectAsState()
     val isLoading by postViewModel.isLoading.collectAsState()
+    // 🔑 Observar el token como StateFlow
+    val token by authViewModel.currentToken.collectAsState()
+    // 🆕 Estado del drawer
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val userProfile by authViewModel.userProfile.collectAsState() // 👈 Observar perfil
 
-    LaunchedEffect(Unit) {
-        val token = authViewModel.getToken()
+    LaunchedEffect(token) {
         if (!token.isNullOrBlank()) {
-            postViewModel.loadPosts(token)
+            postViewModel.loadPosts(token!!)
+            authViewModel.loadUserProfile() // 👈 Cargar perfil del usuario
         }
     }
 
@@ -60,106 +71,156 @@ fun HomeScreen(
                 publicacion.descripcion.contains(searchQuery, ignoreCase = true)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.cloud_icon),
-                            contentDescription = "Logo La Troca",
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
-                actions = {
-                    TextButton(onClick = onLogout) {
-                        Text("Cerrar sesión", color = Color(0xFFE53E3E))
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("newPublication") },
-                containerColor = Color(0xFF4CAF50),
-                contentColor = Color.White
+    // 🆕 ModalNavigationDrawer (Drawer lateral)
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(
+                drawerContainerColor = Color.White
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Nueva publicación")
+                DrawerContent(
+                    onHomeClick = {
+                        scope.launch { drawerState.close() }
+                    },
+                    onConfigClick = {
+                        scope.launch { drawerState.close() }
+                        navController.navigate("settings")
+                    },
+                    userProfile = userProfile // 👈 Pasar perfil
+                )
             }
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFFF7FAFC))
-        ) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(12.dp),
-                placeholder = { Text("Buscar publicaciones...") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Buscar",
-                        tint = Color(0xFF718096)
-                    )
-                },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFFE53E3E),
-                    unfocusedBorderColor = Color(0xFFE2E8F0)
-                )
-            )
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFFE53E3E))
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    item(span = { GridItemSpan(2) }) {
-                        Text(
-                            text = "Publicaciones",
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 16.dp),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2D3748)
-                        )
-                    }
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween // 👈 distribuye icono y logo en extremos
+                        ) {
+                            // 🧭 Icono de menú a la izquierda
+                            IconButton(onClick = {
+                                scope.launch {
+                                    drawerState.open()
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "Menú",
+                                    tint = Color(0xFF2D3748)
+                                )
+                            }
 
-                    items(filteredPublicaciones) { publicacion ->
-                        val esPropia = publicacion.userId == currentUserId
-                        CardPublicationItem(
-                            publicacion = Publicacion(
-                                id = publicacion.id,
-                                categoria = publicacion.categoria,
-                                titulo = publicacion.titulo,
-                                descripcion = publicacion.descripcion,
-                                ubicacion = publicacion.ubicacion.manual,
-                                imagenUrl = publicacion.fotosUrl.firstOrNull() ?: ""
-                            ),
-                            esPropia = esPropia,
-                            onClick = { navController.navigate("publicationDetail/${publicacion.id}") }
+                            // 🖼️ Logo a la derecha
+                            Image(
+                                painter = painterResource(id = R.drawable.la_troca_logo_2),
+                                contentDescription = "Logo La Troca",
+                                modifier = Modifier.size(60.dp)
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = { navController.navigate("newPublication") },
+                    containerColor = Color(0xFF4CAF50),
+                    contentColor = Color.White
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Nueva publicación")
+                }
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .background(Color(0xFFF7FAFC))
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    placeholder = { Text("Buscar publicaciones...") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Buscar",
+                            tint = Color(0xFF718096)
                         )
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFE53E3E),
+                        unfocusedBorderColor = Color(0xFFE2E8F0)
+                    )
+                )
+
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color(0xFFE53E3E))
+                    }
+                } else if (token.isNullOrBlank()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "⚠️ No se pudo obtener el token",
+                                fontSize = 16.sp,
+                                color = Color(0xFFE53E3E),
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Por favor, inicia sesión nuevamente",
+                                fontSize = 14.sp,
+                                color = Color(0xFF718096)
+                            )
+                        }
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        item(span = { GridItemSpan(2) }) {
+                            Text(
+                                text = "Publicaciones",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2D3748)
+                            )
+                        }
+
+                        items(filteredPublicaciones) { publicacion ->
+                            val esPropia = publicacion.userId == currentUserId
+                            CardPublicationItem(
+                                publicacion = Publicacion(
+                                    id = publicacion.id,
+                                    categoria = publicacion.categoria,
+                                    titulo = publicacion.titulo,
+                                    descripcion = publicacion.descripcion,
+                                    ubicacion = publicacion.ubicacion.manual,
+                                    imagenUrl = publicacion.fotosUrl.firstOrNull() ?: ""
+                                ),
+                                esPropia = esPropia,
+                                onClick = { navController.navigate("publicationDetail/${publicacion.id}") }
+                            )
+                        }
                     }
                 }
             }
@@ -167,6 +228,93 @@ fun HomeScreen(
     }
 }
 
+// 🆕 Contenido del Drawer
+@Composable
+fun DrawerContent(
+    onHomeClick: () -> Unit,
+    onConfigClick: () -> Unit,
+    userProfile: UserProfileResponse? // 👈 Recibir perfil
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        // 🎨 Header del drawer con info del usuario
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFE53E3E))
+                .padding(24.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Foto de perfil
+                if (!userProfile?.profilePicUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = userProfile?.profilePicUrl,
+                        contentDescription = "Foto de perfil",
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .background(Color.White, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Perfil",
+                            tint = Color(0xFFE53E3E),
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column {
+                    Text(
+                        text = userProfile?.name ?: "Cargando...",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = userProfile?.email ?: "",
+                        fontSize = 14.sp,
+                        color = Color.White.copy(alpha = 0.9f)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        NavigationDrawerItem(
+            label = { Text("Home") },
+            icon = { Icon(Icons.Default.Home, "Home") },
+            selected = false,
+            onClick = onHomeClick,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        NavigationDrawerItem(
+            label = { Text("Configuración") },
+            icon = { Icon(Icons.Default.Settings, "Configuración") },
+            selected = false,
+            onClick = onConfigClick,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+        )
+    }
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardPublicationItem(

@@ -66,6 +66,8 @@ dependencies {
 
     implementation(platform("com.google.firebase:firebase-bom:34.4.0"))
     implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-firestore-ktx:25.0.0")
+// Check for the latest version
     implementation(libs.androidx.core.ktx)
 
 
@@ -85,6 +87,7 @@ dependencies {
 
     // Compose Navigation
     implementation("androidx.navigation:navigation-compose:2.7.2")
+    implementation("com.google.firebase:firebase-auth-ktx:23.2.1")
 
     // Hilt
 //    implementation("com.google.dagger:hilt-android:2.48")

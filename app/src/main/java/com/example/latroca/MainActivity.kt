@@ -38,7 +38,10 @@ class MainActivity : ComponentActivity() {
                     val postRepository = remember { PostRepository() }
 
                     val authViewModel = remember { AuthViewModel(authRepository) }
-                    val registrationViewModel = remember { RegistrationViewModel(authRepository) }
+                    // 👇 CAMBIO: Pasar authViewModel al RegistrationViewModel
+                    val registrationViewModel = remember {
+                        RegistrationViewModel(authRepository, authViewModel)
+                    }
                     val postViewModel = remember { PostViewModel(postRepository) }
 
                     NavHost(
@@ -48,7 +51,8 @@ class MainActivity : ComponentActivity() {
                         composable("login") {
                             LoginScreen(
                                 navController = navController,
-                                authViewModel = authViewModel
+                                authViewModel = authViewModel,
+                                registrationViewModel = registrationViewModel
                             )
                         }
 
@@ -66,18 +70,44 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
+                        composable("settings") {
+                            SettingsScreen(
+                                navController = navController,
+                                authViewModel = authViewModel,  // 👈 PASAR authViewModel
+                                onLogout = {
+                                    authViewModel.logout()
+                                    registrationViewModel.resetState()
+                                    postViewModel.clearPosts()
+                                    navController.navigate("login") {
+                                        popUpTo(0) { inclusive = true }
+                                    }
+                                }
+                            )
+                        }
+                        composable("help") {
+                            HelpScreen(navController = navController)
+                        }
                         composable("home") {
                             HomeScreen(
                                 navController = navController,
                                 onLogout = {
-                                    authViewModel.resetLoginState()
+                                    authViewModel.logout()  // 👈 Usar nueva función
                                     registrationViewModel.resetState()
+                                    postViewModel.clearPosts()  // 👈 Si tienes esta función
+
                                     navController.navigate("login") {
-                                        popUpTo(0)
+                                        popUpTo(0) { inclusive = true }
                                     }
                                 },
                                 authViewModel = authViewModel,
                                 postViewModel = postViewModel
+                            )
+                        }
+
+                        composable("deleteAccount") {
+                            DeleteAccountScreen(
+                                navController = navController,
+                                authViewModel = authViewModel  // 👈 PASAR authViewModel
                             )
                         }
 

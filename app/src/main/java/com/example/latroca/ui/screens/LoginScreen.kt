@@ -1,5 +1,6 @@
 package com.example.latroca.ui.screens
 
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -16,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -23,11 +25,31 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.credentials.CredentialManager
 import androidx.navigation.NavController
 import com.example.latroca.R
 import com.example.latroca.ui.viewmodels.AuthViewModel
 import com.example.latroca.domain.models.AuthResult
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.firebase.Firebase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.example.latroca.ui.viewmodels.RegistrationViewModel
+
+
+
+import android.util.Log
+import android.widget.Toast
+import androidx.credentials.*
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.auth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+
 
 private fun isValidGeneralDomain(domain: String): Boolean {
     val domainRegex = Regex("^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z]{2,})+$")
@@ -39,7 +61,8 @@ private fun isValidGeneralDomain(domain: String): Boolean {
 @Composable
 fun LoginScreen(
     navController: NavController,
-    authViewModel: AuthViewModel
+    authViewModel: AuthViewModel,
+    registrationViewModel: RegistrationViewModel
 ) {
     val loginState by authViewModel.loginState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -76,6 +99,7 @@ fun LoginScreen(
         }
     }
 
+    var isGoogleLogin by remember { mutableStateOf(false) }
 
     val isFormValid by remember(email, password, emailError) {
         derivedStateOf {
@@ -95,6 +119,7 @@ fun LoginScreen(
             is AuthResult.Success -> {
                 credentialsError = false
                 authViewModel.resetLoginState()
+                isGoogleLogin = false
 
                 navController.navigate("home") {
                     popUpTo(0) { inclusive = true }
@@ -103,21 +128,73 @@ fun LoginScreen(
             is AuthResult.Error -> {
                 val errorMessage = (loginState as AuthResult.Error).message
 
-                credentialsError = errorMessage.containsAny(
-                    "contraseña", "password", "usuario", "user", "email", "credenciales", "not found"
-                )
+                Log.d("LoginScreen", "Error recibido: $errorMessage")
+                Log.d("LoginScreen", "isGoogleLogin: $isGoogleLogin")
 
-                if (errorMessage.contains("network", ignoreCase = true)) {
-                    snackbarHostState.showSnackbar(
-                        message = "Problema de conexión. Verifica tu internet",
-                        duration = SnackbarDuration.Short
+                // 🔴 IMPORTANTE: Verificar PRIMERO si está desactivada/inactiva/suspendida
+                if (errorMessage.contains("inactiva", ignoreCase = true) ||
+                    errorMessage.contains("suspendida", ignoreCase = true) ||
+                    errorMessage.contains("desactivada", ignoreCase = true)) {
+
+                    isGoogleLogin = false
+                    credentialsError = false
+
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(
+                            message = errorMessage,
+                            duration = SnackbarDuration.Long
+                        )
+                    }
+
+                    // NO navegar a ningún lado, solo mostrar el mensaje
+                    authViewModel.resetLoginState()
+                }
+                // 🟡 Si NO está desactivada, entonces verificar si es Google y no está registrado
+                else if (isGoogleLogin &&
+                    (errorMessage.contains("no registrado", ignoreCase = true) ||
+                            errorMessage.contains("not found", ignoreCase = true) ||
+                            errorMessage.contains("404", ignoreCase = true) ||
+                            errorMessage.contains("Usuario no registrado", ignoreCase = true) ||
+                            errorMessage.contains("Credenciales incorrectas", ignoreCase = true))) {
+
+                    Log.d("LoginScreen", "Usuario Google no registrado → Navegando a completeProfile")
+
+                    // Usuario de Google no registrado → Ir a completar perfil
+                    isGoogleLogin = false
+                    authViewModel.resetLoginState()
+
+                    navController.navigate("completeProfile") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+                // 🔵 Otros errores (login tradicional)
+                else {
+                    Log.d("LoginScreen", "Error de login tradicional")
+
+                    isGoogleLogin = false
+
+                    credentialsError = errorMessage.containsAny(
+                        "contraseña", "password", "usuario", "user", "email", "credenciales", "not found"
                     )
+
+                    if (errorMessage.contains("network", ignoreCase = true)) {
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(
+                                message = "Problema de conexión. Verifica tu internet",
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    }
                 }
             }
-            else -> {
-            }
+            else -> {}
         }
     }
+
+    val context = LocalContext.current
+    val credentialManager = CredentialManager.create(context)
+    val auth = Firebase.auth
+
 
     Column(
         modifier = Modifier
@@ -129,16 +206,10 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(80.dp))
 
         Image(
-            painter = painterResource(id = R.drawable.cloud_icon),
+            painter = painterResource(id = R.drawable.la_troca_logo),
             contentDescription = "Logo La Troca",
-            modifier = Modifier.size(90.dp)
-        )
-
-        Text(
-            text = "La Troca",
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp,
-            color = Color(0xFF90A4AE)
+            modifier = Modifier
+                .size(150.dp) // antes 90.dp, agrandado
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -325,6 +396,7 @@ fun LoginScreen(
             onClick = {
                 if (isFormValid) {
                     credentialsError = false
+                    isGoogleLogin = false // 👈 Login tradicional
                     authViewModel.login(email, password)
                 }
             },
@@ -390,7 +462,95 @@ fun LoginScreen(
         ) {
             IconButton(
                 onClick = {
+                    coroutineScope.launch(Dispatchers.Main) {
+                        try {
+                            isGoogleLogin = true // 👈 Marcar como login de Google
 
+                            // 1️⃣ Crear opción de inicio de sesión con Google
+                            val googleIdOption = GetSignInWithGoogleOption.Builder(
+                                context.getString(R.string.default_web_client_id)
+                            ).build()
+
+                            // 2️⃣ Crear solicitud de credencial
+                            val request = GetCredentialRequest.Builder()
+                                .addCredentialOption(googleIdOption)
+                                .build()
+
+                            // 3️⃣ Ejecutar sign-in
+                            val result = credentialManager.getCredential(
+                                context = context,
+                                request = request
+                            )
+
+                            val credential = result.credential
+                            if (credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                                val googleIdTokenCredential =
+                                    GoogleIdTokenCredential.createFrom(credential.data)
+                                val googleIdToken = googleIdTokenCredential.idToken
+
+                                // 4️⃣ Pasar token a Firebase
+                                val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
+                                auth.signInWithCredential(firebaseCredential)
+                                    .addOnCompleteListener { task ->
+                                        if (task.isSuccessful) {
+                                            val user = auth.currentUser
+                                            val nombre = user?.displayName ?: ""
+                                            val email = user?.email ?: ""
+                                            val photoUrl = user?.photoUrl
+
+                                            // 🔍 INTENTAR LOGIN CON GOOGLE DIRECTAMENTE
+                                            authViewModel.loginWithGoogle(googleIdToken)
+
+                                            // ⚠️ Guardar datos temporales por si necesita registrarse
+                                            val randomPassword = (1..12)
+                                                .map { ('a'..'z') + ('A'..'Z') + ('0'..'9') }
+                                                .flatten()
+                                                .shuffled()
+                                                .take(10)
+                                                .joinToString("")
+
+                                            registrationViewModel.updateStep1Data(
+                                                nombre = nombre,
+                                                email = email,
+                                                password = randomPassword
+                                            )
+
+                                            photoUrl?.let { uri ->
+                                                registrationViewModel.updateStep2Data(
+                                                    bio = "",
+                                                    ubicacionManual = "",
+                                                    lat = 0.0,
+                                                    lon = 0.0,
+                                                    imageUri = Uri.parse(uri.toString())
+                                                )
+                                            }
+
+                                            // El LaunchedEffect manejará la navegación
+                                        } else {
+                                            isGoogleLogin = false // Resetear si falla
+                                            Toast.makeText(
+                                                context,
+                                                "Error al iniciar sesión con Google",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            Log.e("FirebaseAuth", "signInWithCredential:failure", task.exception)
+                                        }
+                                    }
+                            }
+                        } catch (e: GoogleIdTokenParsingException) {
+                            isGoogleLogin = false // Resetear en caso de error
+                            Toast.makeText(context, "Error al procesar token", Toast.LENGTH_SHORT).show()
+                            Log.e("SignIn", "Token error: ${e.message}")
+                        } catch (e: GetCredentialException) {
+                            isGoogleLogin = false // Resetear en caso de cancelación
+                            Toast.makeText(context, "Cancelado o sin credenciales", Toast.LENGTH_SHORT).show()
+                            Log.e("SignIn", "Credential error: ${e.message}")
+                        } catch (e: Exception) {
+                            isGoogleLogin = false // Resetear en caso de error
+                            Toast.makeText(context, "Error general: ${e.message}", Toast.LENGTH_SHORT).show()
+                            Log.e("SignIn", "Error general: ${e.message}")
+                        }
+                    }
                 },
                 modifier = Modifier
                     .size(48.dp)
@@ -404,22 +564,8 @@ fun LoginScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-            IconButton(
-                onClick = {
 
-                },
-                modifier = Modifier
-                    .size(48.dp)
-                    .padding(4.dp)
-                    .background(Color.White, CircleShape)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_facebook_logo),
-                    contentDescription = "Login con Facebook",
-                    modifier = Modifier.size(34.dp)
-                )
-            }
+
         }
 
         Spacer(modifier = Modifier.height(10.dp))

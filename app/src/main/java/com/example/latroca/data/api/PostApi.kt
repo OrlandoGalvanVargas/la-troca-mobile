@@ -15,8 +15,8 @@ interface PostApi {
     ): PostResponse
 
     @Multipart
-    @POST("api/Post")
-    suspend fun createPostWithImage(
+    @POST("api/Post/CrearPublicacion")
+    suspend fun createPostValidated(
         @Header("Authorization") token: String,
         @Part("Titulo") titulo: RequestBody,
         @Part("Descripcion") descripcion: RequestBody,
@@ -51,4 +51,16 @@ interface PostApi {
         @Path("id") postId: String
     ): Response<ResponseBody>
 
+    @Multipart
+    @POST("api/ImagenModeration/AnalizarImagen")
+    suspend fun analyzeImage(
+        @Header("Authorization") token: String,
+        @Part file: MultipartBody.Part
+    ): Response<ResponseBody>
+
+    @POST("api/TextModeration/AnalizarTexto")
+    suspend fun analyzeText(
+        @Header("Authorization") token: String,
+        @Body body: okhttp3.RequestBody
+    ): Response<ResponseBody>
 }

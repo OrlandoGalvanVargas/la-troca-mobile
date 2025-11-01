@@ -20,7 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import com.example.latroca.ui.components.AlertTop
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -29,7 +29,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.navigation.NavController
@@ -114,8 +113,10 @@ fun NewPublicationScreen(
     var tituloSeguro by remember { mutableStateOf<Boolean?>(null) }
     var descripcionSegura by remember { mutableStateOf<Boolean?>(null) }
     var necesidadSegura by remember { mutableStateOf<Boolean?>(null) }
+    var categoriaSegura by remember { mutableStateOf<Boolean?>(null) }
     var imagenSegura by remember { mutableStateOf<Boolean?>(null) }
 
+    // Foto
     val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
     val photoFile = remember { File(context.cacheDir, "JPEG_${timeStamp}_${UUID.randomUUID()}.jpg") }
     val photoUri = remember {
@@ -164,6 +165,11 @@ fun NewPublicationScreen(
         delay(1000)
         if (necesidad.isNotBlank()) necesidadSegura = postViewModel.analyzeText(token, necesidad).first
     }
+    LaunchedEffect(categoria) {
+        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        delay(1000)
+        if (categoria.isNotBlank()) categoriaSegura = postViewModel.analyzeText(token, categoria).first
+    }
     LaunchedEffect(selectedImageUri) {
         val token = authViewModel.getToken() ?: return@LaunchedEffect
         imagenSegura = null
@@ -171,6 +177,7 @@ fun NewPublicationScreen(
             imagenSegura = postViewModel.analyzeImage(context, token, it).first
         }
     }
+
 
     LaunchedEffect(showSuccess) {
         if (showSuccess) {
@@ -208,7 +215,7 @@ fun NewPublicationScreen(
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // foto
+                // Foto
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -256,14 +263,14 @@ fun NewPublicationScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // Campos a validar con IA
                 CampoIA("Título", titulo, tituloSeguro) { titulo = it }
                 CampoIA("Descripción", descripcion, descripcionSegura, 100.dp) { descripcion = it }
-                CampoTexto("Categoría", categoria) { categoria = it }
+                CampoIA("Categoría", categoria, categoriaSegura) { categoria = it }
                 CampoIA("Necesidad (qué buscas a cambio)", necesidad, necesidadSegura, 100.dp) { necesidad = it }
 
+                // Ubicación
                 Spacer(modifier = Modifier.height(12.dp))
-
-                // Ubicacion
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -309,6 +316,7 @@ fun NewPublicationScreen(
                 val isReady = tituloSeguro == true &&
                         descripcionSegura == true &&
                         necesidadSegura == true &&
+                        categoriaSegura == true &&
                         imagenSegura == true &&
                         titulo.isNotBlank() &&
                         descripcion.isNotBlank() &&
@@ -455,73 +463,7 @@ fun CampoIA(label: String, valor: String, seguro: Boolean?, altura: Dp = 56.dp, 
     }
 }
 
-@Composable
-fun CampoTexto(label: String, valor: String, altura: Dp = 56.dp, onChange: (String) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 14.dp)
-    ) {
-        Text(
-            label,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color(0xFFE53935),
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
 
-        OutlinedTextField(
-            value = valor,
-            onValueChange = onChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(altura),
-            placeholder = { Text("Escribe aquí...", color = Color(0xFFB0BEC5)) },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFFE53935),
-                unfocusedBorderColor = Color(0xFFE2E8F0)
-            )
-        )
-    }
-}
 
-@Composable
-fun AlertTop(message: String, color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .zIndex(10f)
-            .padding(top = 110.dp),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Box(
-            modifier = Modifier
-                .wrapContentWidth()
-                .shadow(6.dp, RoundedCornerShape(50))
-                .background(color, RoundedCornerShape(50))
-                .padding(horizontal = 22.dp, vertical = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .padding(end = 6.dp)
-                )
-                Text(
-                    text = message,
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
+
+

@@ -11,7 +11,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -51,7 +50,6 @@ fun HomeScreen(
     }
 
     val currentUserId = authViewModel.getUserId()
-    var showFilters by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
     val filteredPublicaciones = publicaciones.filter { publicacion ->
@@ -120,6 +118,7 @@ fun HomeScreen(
                     unfocusedBorderColor = Color(0xFFE2E8F0)
                 )
             )
+
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color(0xFFE53E3E))
@@ -184,30 +183,29 @@ fun CardPublicationItem(
         onClick = onClick
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(12.dp)
             ) {
                 AsyncImage(
-                    model = publicacion.imagenUrl,
+                    model = publicacion.imagenUrl.ifEmpty { "https://via.placeholder.com/600x400.png?text=Sin+imagen" },
                     contentDescription = "Imagen publicación",
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(100.dp)
                         .clip(RoundedCornerShape(12.dp)),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.Center
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = publicacion.categoria,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFE53E3E),
-                    modifier = Modifier.padding(bottom = 4.dp),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -217,7 +215,7 @@ fun CardPublicationItem(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF2D3748),
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 

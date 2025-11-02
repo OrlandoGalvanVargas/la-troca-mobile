@@ -8,27 +8,28 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import com.example.latroca.ui.components.AlertTop
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.compose.foundation.clickable
 import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
@@ -36,9 +37,9 @@ import com.example.latroca.ui.components.ImagePickerDialog
 import com.example.latroca.ui.viewmodels.AuthViewModel
 import com.example.latroca.ui.viewmodels.PostViewModel
 import com.google.android.gms.location.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
-import androidx.compose.ui.unit.Dp
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -60,14 +61,11 @@ private fun getRealLocation(context: android.content.Context, onLocationResult: 
                             address.countryName?.let { append(", $it") }
                         }
                     } else "${location.latitude}, ${location.longitude}"
-
                     onLocationResult(locationName, location.latitude, location.longitude)
                 } catch (e: Exception) {
                     onLocationResult("Ubicación no disponible", 0.0, 0.0)
                 }
-            } ?: run {
-                onLocationResult("No se pudo obtener ubicación", 0.0, 0.0)
-            }
+            } ?: onLocationResult("No se pudo obtener ubicación", 0.0, 0.0)
             fusedLocationClient.removeLocationUpdates(this)
         }
     }
@@ -77,9 +75,7 @@ private fun getRealLocation(context: android.content.Context, onLocationResult: 
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
         PackageManager.PERMISSION_GRANTED
     ) {
-        fusedLocationClient.requestLocationUpdates(
-            locationRequest, locationCallback, android.os.Looper.getMainLooper()
-        )
+        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, android.os.Looper.getMainLooper())
     } else {
         onLocationResult("Permisos de ubicación no concedidos", 0.0, 0.0)
     }
@@ -108,43 +104,33 @@ fun NewPublicationScreen(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var showImagePicker by remember { mutableStateOf(false) }
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    var isPublishing by remember { mutableStateOf(false) }
+    var isWaitingAfterPublish by remember { mutableStateOf(false) }
+    var showSuccess by remember { mutableStateOf(false) }
+    var showError by remember { mutableStateOf(false) }
 
+    // IA
+    var tituloSeguro by remember { mutableStateOf<Boolean?>(null) }
+    var descripcionSegura by remember { mutableStateOf<Boolean?>(null) }
+    var necesidadSegura by remember { mutableStateOf<Boolean?>(null) }
+    var categoriaSegura by remember { mutableStateOf<Boolean?>(null) }
+    var imagenSegura by remember { mutableStateOf<Boolean?>(null) }
+
+    // Foto
     val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
     val photoFile = remember { File(context.cacheDir, "JPEG_${timeStamp}_${UUID.randomUUID()}.jpg") }
     val photoUri = remember {
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
     }
 
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        if (success) selectedImageUri = photoUri
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) {
+        if (it) selectedImageUri = photoUri
     }
-
-    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { selectedImageUri = it }
     }
-
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-        if (isGranted) cameraLauncher.launch(photoUri)
-    }
-
-
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-        if (fineGranted || coarseGranted) {
-            isGettingLocation = true
-            getRealLocation(context) { name, lat, lon ->
-                ubicacion = name ?: "Desconocida"
-                latitude = lat
-                longitude = lon
-                isGettingLocation = false
-            }
-        } else {
-            coroutineScope.launch { snackbarHostState.showSnackbar("Permiso de ubicación denegado") }
-        }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (it) cameraLauncher.launch(photoUri)
     }
 
     fun requestLocation() {
@@ -152,7 +138,6 @@ fun NewPublicationScreen(
                 PackageManager.PERMISSION_GRANTED
         val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
-
         if (hasFine && hasCoarse) {
             isGettingLocation = true
             getRealLocation(context) { name, lat, lon ->
@@ -161,10 +146,50 @@ fun NewPublicationScreen(
                 longitude = lon
                 isGettingLocation = false
             }
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-            )
+        }
+    }
+
+    // IA Validación
+    LaunchedEffect(titulo) {
+        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        delay(1000)
+        if (titulo.isNotBlank()) tituloSeguro = postViewModel.analyzeText(token, titulo).first
+    }
+    LaunchedEffect(descripcion) {
+        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        delay(1000)
+        if (descripcion.isNotBlank()) descripcionSegura = postViewModel.analyzeText(token, descripcion).first
+    }
+    LaunchedEffect(necesidad) {
+        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        delay(1000)
+        if (necesidad.isNotBlank()) necesidadSegura = postViewModel.analyzeText(token, necesidad).first
+    }
+    LaunchedEffect(categoria) {
+        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        delay(1000)
+        if (categoria.isNotBlank()) categoriaSegura = postViewModel.analyzeText(token, categoria).first
+    }
+    LaunchedEffect(selectedImageUri) {
+        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        imagenSegura = null
+        selectedImageUri?.let {
+            imagenSegura = postViewModel.analyzeImage(context, token, it).first
+        }
+    }
+
+
+    LaunchedEffect(showSuccess) {
+        if (showSuccess) {
+            delay(2000)
+            showSuccess = false
+            navController.navigate("home")
+        }
+    }
+    LaunchedEffect(showError) {
+        if (showError) {
+            delay(2000)
+            showError = false
         }
     }
 
@@ -179,148 +204,205 @@ fun NewPublicationScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // ====== Imagen rectangular ======
-            Text(
-                text = "Foto del producto:",
-                color = Color(0xFFE53935),
-                fontWeight = FontWeight.SemiBold,
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .align(Alignment.Start)
-                    .padding(bottom = 8.dp)
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFFF7FAFC))
-                    .clickable { showImagePicker = true },
-                contentAlignment = Alignment.Center
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(padding)
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (selectedImageUri != null) {
-                    Image(
-                        painter = rememberAsyncImagePainter(selectedImageUri),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Text("+", fontSize = 50.sp, color = Color(0xFF718096))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            CampoTexto("Título", titulo) { titulo = it }
-            CampoTexto("Descripción", descripcion, 100.dp) { descripcion = it }
-            CampoTexto("Categoría", categoria) { categoria = it }
-            CampoTexto("Necesidad (qué buscas a cambio)", necesidad, 100.dp) { necesidad = it }
-
-            Text(
-                text = "Ubicación:",
-                color = Color(0xFFE53935),
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .align(Alignment.Start)
-                    .padding(top = 16.dp, bottom = 8.dp)
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = ubicacion,
-                    onValueChange = { ubicacion = it },
-                    leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFFE53935)) },
+                // Foto
+                Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFFE53935),
-                        unfocusedBorderColor = Color(0xFFE2E8F0)
-                    )
-                )
-                IconButton(
-                    onClick = { requestLocation() },
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .size(50.dp)
-                        .background(Color(0xFFFFCDD2), RoundedCornerShape(12.dp))
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
                 ) {
-                    if (isGettingLocation)
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    else
-                        Icon(Icons.Default.MyLocation, contentDescription = "Ubicación", tint = Color(0xFFE53935))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = {
-                    val token = authViewModel.getToken()
-                    if (token.isNullOrEmpty()) {
-                        coroutineScope.launch { snackbarHostState.showSnackbar("Error: usuario no autenticado") }
-                        return@Button
-                    }
-
-                    if (titulo.isBlank() || descripcion.isBlank() || categoria.isBlank() || necesidad.isBlank() ||
-                        selectedImageUri == null || ubicacion.isBlank() || latitude == 0.0
-                    ) {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Completa todos los campos e incluye una foto y ubicación.")
-                        }
-                        return@Button
-                    }
-
-                    postViewModel.createPostWithImage(
-                        context = context,
-                        token = token,
-                        titulo = titulo,
-                        descripcion = descripcion,
-                        categoria = categoria,
-                        necesidad = necesidad,
-                        ubicacion = ubicacion,
-                        latitude = latitude,
-                        longitude = longitude,
-                        imageUri = selectedImageUri!!,
-                        onSuccess = {
-                            coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Publicación creada correctamente")
-                                navController.navigate("home")
-                            }
-                        },
-                        onError = { msg ->
-                            coroutineScope.launch { snackbarHostState.showSnackbar("Error: $msg") }
-                        }
+                    Text(
+                        text = "Foto del producto:",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFE53935),
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B6B))
-            ) {
-                Text("Publicar", color = Color.White, fontWeight = FontWeight.Bold)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(250.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFF7FAFC))
+                            .clickable { showImagePicker = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        selectedImageUri?.let {
+                            Image(
+                                painter = rememberAsyncImagePainter(it),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 200.dp, max = 300.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = ContentScale.Fit
+                            )
+                        } ?: Text("+", fontSize = 50.sp, color = Color(0xFF718096))
+                    }
+                }
+
+                if (imagenSegura == false) {
+                    Text(
+                        "Contenido de imagen no permitido",
+                        color = Color(0xFFD32F2F),
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Campos a validar con IA
+                CampoIA("Título", titulo, tituloSeguro) { titulo = it }
+                CampoIA("Descripción", descripcion, descripcionSegura, 100.dp) { descripcion = it }
+                CampoIA("Categoría", categoria, categoriaSegura) { categoria = it }
+                CampoIA("Necesidad (qué buscas a cambio)", necesidad, necesidadSegura, 100.dp) { necesidad = it }
+
+                // Ubicación
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                ) {
+                    Text(
+                        text = "Ubicación:",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFE53935),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = ubicacion,
+                            onValueChange = { ubicacion = it },
+                            leadingIcon = {
+                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFFE53935))
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFFE53935),
+                                unfocusedBorderColor = Color(0xFFE2E8F0)
+                            )
+                        )
+                        IconButton(
+                            onClick = { requestLocation() },
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .size(50.dp)
+                                .background(Color(0xFFFFCDD2), RoundedCornerShape(8.dp))
+                        ) {
+                            if (isGettingLocation)
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            else
+                                Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color(0xFFE53935))
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                val isReady = tituloSeguro == true &&
+                        descripcionSegura == true &&
+                        necesidadSegura == true &&
+                        categoriaSegura == true &&
+                        imagenSegura == true &&
+                        titulo.isNotBlank() &&
+                        descripcion.isNotBlank() &&
+                        categoria.isNotBlank() &&
+                        necesidad.isNotBlank() &&
+                        ubicacion.isNotBlank() &&
+                        selectedImageUri != null &&
+                        !isPublishing &&
+                        !isWaitingAfterPublish
+
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            val token = authViewModel.getToken() ?: return@launch
+                            isPublishing = true
+                            postViewModel.createPostWithImage(
+                                context,
+                                token,
+                                titulo,
+                                descripcion,
+                                categoria,
+                                necesidad,
+                                ubicacion,
+                                latitude,
+                                longitude,
+                                selectedImageUri!!,
+                                onSuccess = {
+                                    coroutineScope.launch {
+                                        isPublishing = false
+                                        isWaitingAfterPublish = true
+                                        showSuccess = true
+                                        delay(2500)
+                                        isWaitingAfterPublish = false
+                                    }
+                                },
+                                onError = {
+                                    coroutineScope.launch {
+                                        isPublishing = false
+                                        isWaitingAfterPublish = true
+                                        showError = true
+                                        delay(2500)
+                                        isWaitingAfterPublish = false
+                                    }
+                                }
+                            )
+                        }
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = when {
+                            isPublishing || isWaitingAfterPublish -> Color(0xFFB0BEC5)
+                            isReady -> Color(0xFFFF6B6B)
+                            else -> Color.LightGray
+                        }
+                    ),
+                    enabled = isReady
+                ) {
+                    if (isPublishing)
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    else
+                        Text("Publicar", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(30.dp))
             }
+
+            if (showSuccess)
+                AlertTop("Publicación creada correctamente", Color(0xFF4CAF50), Icons.Default.CheckCircle)
+            if (showError)
+                AlertTop("Error al crear la publicación", Color(0xFFD32F2F), Icons.Default.Error)
         }
 
         if (showImagePicker) {
             ImagePickerDialog(
                 onTakePhoto = {
                     showImagePicker = false
-                    val hasCameraPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-                            PackageManager.PERMISSION_GRANTED
+                    val hasCameraPermission =
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                                PackageManager.PERMISSION_GRANTED
                     if (hasCameraPermission) cameraLauncher.launch(photoUri)
                     else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                 },
@@ -335,28 +417,53 @@ fun NewPublicationScreen(
 }
 
 @Composable
-fun CampoTexto(label: String, valor: String, altura: Dp = 56.dp, onChange: (String) -> Unit) {
-    Text(
-        text = label,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
-        color = Color(0xFFE53935),
-        textAlign = androidx.compose.ui.text.style.TextAlign.Start,
+fun CampoIA(label: String, valor: String, seguro: Boolean?, altura: Dp = 56.dp, onChange: (String) -> Unit) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 4.dp)
-    )
-    OutlinedTextField(
-        value = valor,
-        onValueChange = onChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp)
-            .height(altura),
-        placeholder = { Text("Escribe aquí...", color = Color(0xFFB0BEC5)) },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Color(0xFFE53935),
-            unfocusedBorderColor = Color(0xFFE2E8F0)
+            .padding(bottom = 14.dp)
+    ) {
+        Text(
+            label,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color(0xFFE53935),
+            modifier = Modifier.padding(bottom = 4.dp)
         )
-    )
+
+        OutlinedTextField(
+            value = valor,
+            onValueChange = onChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(altura),
+            placeholder = { Text("Escribe aquí...", color = Color(0xFFB0BEC5)) },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFFE53935),
+                unfocusedBorderColor = Color(0xFFE2E8F0)
+            )
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(20.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (seguro == false) {
+                Text(
+                    text = "Contenido inapropiado detectado",
+                    color = Color(0xFFD32F2F),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Start,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+        }
+    }
 }
+
+
+
+
+

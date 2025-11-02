@@ -61,24 +61,20 @@ class PostViewModel(
             return
         }
         viewModelScope.launch {
-            try {
-                val result = postRepository.createPostWithImage(
-                    context,
-                    token,
-                    titulo,
-                    descripcion,
-                    categoria,
-                    necesidad,
-                    ubicacion,
-                    latitude,
-                    longitude,
-                    imageUri
-                )
-                if (result) onSuccess()
-                else onError("Error al crear publicación")
-            } catch (e: Exception) {
-                onError("Error: ${e.message ?: "Error desconocido"}")
-            }
+            postRepository.createPostWithImage(
+                context = context,
+                token = token,
+                titulo = titulo,
+                descripcion = descripcion,
+                categoria = categoria,
+                necesidad = necesidad,
+                ubicacion = ubicacion,
+                latitude = latitude,
+                longitude = longitude,
+                imageUri = imageUri,
+                onSuccess = onSuccess,
+                onError = onError
+            )
         }
     }
 
@@ -163,5 +159,13 @@ class PostViewModel(
     // 🆕 Función para limpiar posts
     fun clearPosts() {
         _posts.value = emptyList()
+    }
+
+    suspend fun analyzeText(token: String, text: String): Pair<Boolean, String> {
+        return postRepository.analyzeText(token, text)
+    }
+
+    suspend fun analyzeImage(context: Context, token: String, imageUri: Uri): Pair<Boolean, String> {
+        return postRepository.analyzeImage(context, token, imageUri)
     }
 }

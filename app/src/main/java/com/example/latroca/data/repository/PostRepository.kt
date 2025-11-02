@@ -11,6 +11,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import java.io.File
 
 class PostRepository {
@@ -20,8 +21,8 @@ class PostRepository {
     suspend fun getAllPosts(token: String): List<PostItem> = withContext(Dispatchers.IO) {
         try {
             postApi.getAllPosts("Bearer $token").data
-        } catch (e: Exception) {
-            emptyList<PostItem>()
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
@@ -35,35 +36,39 @@ class PostRepository {
         ubicacion: String,
         latitude: Double,
         longitude: Double,
-        imageUri: Uri
-    ): Boolean = withContext(Dispatchers.IO) {
+        imageUri: Uri,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) = withContext(Dispatchers.IO) {
         try {
-            val file = FileUtils.getFileFromUri(context, imageUri) ?: return@withContext false
+            val file = FileUtils.getFileFromUri(context, imageUri) ?: throw Exception("Archivo inválido")
             val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
             val fotoPart = MultipartBody.Part.createFormData("Fotos", file.name, requestFile)
 
-            val tituloPart = titulo.toRequestBody("text/plain".toMediaTypeOrNull())
-            val descripcionPart = descripcion.toRequestBody("text/plain".toMediaTypeOrNull())
-            val categoriaPart = categoria.toRequestBody("text/plain".toMediaTypeOrNull())
-            val necesidadPart = necesidad.toRequestBody("text/plain".toMediaTypeOrNull())
-            val ubicacionManualPart = ubicacion.toRequestBody("text/plain".toMediaTypeOrNull())
-            val latitudePart = latitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
-            val longitudePart = longitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
+            val tituloPart = titulo.clean().toRequestBodyUtf8()
+            val descripcionPart = descripcion.clean().toRequestBodyUtf8()
+            val categoriaPart = categoria.clean().toRequestBodyUtf8()
+            val necesidadPart = necesidad.clean().toRequestBodyUtf8()
+            val ubicacionPart = ubicacion.clean().toRequestBodyUtf8()
+            val latitudePart = latitude.toString().toRequestBodyUtf8()
+            val longitudePart = longitude.toString().toRequestBodyUtf8()
 
-            val response = postApi.createPostWithImage(
+            val response = postApi.createPostValidated(
                 "Bearer $token",
                 tituloPart,
                 descripcionPart,
                 categoriaPart,
                 necesidadPart,
-                ubicacionManualPart,
+                ubicacionPart,
                 latitudePart,
                 longitudePart,
                 listOf(fotoPart)
             )
-            response.isSuccessful
-        } catch (_: Exception) {
-            false
+
+            if (response.isSuccessful) onSuccess()
+            else onError("Error ${response.code()}: ${response.message()}")
+        } catch (e: Exception) {
+            onError(e.localizedMessage ?: "Error desconocido")
         }
     }
 
@@ -91,19 +96,23 @@ class PostRepository {
             val longitudePart = longitude.toString().toRequestBody("text/plain".toMediaTypeOrNull())
 
             val fotosParts = mutableListOf<MultipartBody.Part>()
-            if (newImageUri != null) {
-                FileUtils.getFileFromUri(context, newImageUri)?.let { file ->
-                    val body = file.asRequestBody("image/*".toMediaTypeOrNull())
-                    fotosParts.add(MultipartBody.Part.createFormData("Fotos", file.name, body))
+
+            when {
+                newImageUri != null -> {
+                    FileUtils.getFileFromUri(context, newImageUri)?.let { file ->
+                        val body = file.asRequestBody("image/*".toMediaTypeOrNull())
+                        fotosParts.add(MultipartBody.Part.createFormData("Fotos", file.name, body))
+                    }
                 }
-            } else if (!existingImageUrl.isNullOrBlank()) {
-                downloadToCache(context, existingImageUrl)?.let { tmp ->
-                    val body = tmp.asRequestBody("image/*".toMediaTypeOrNull())
-                    fotosParts.add(MultipartBody.Part.createFormData("Fotos", tmp.name, body))
+                !existingImageUrl.isNullOrBlank() -> {
+                    downloadToCache(context, existingImageUrl)?.let { tmp ->
+                        val body = tmp.asRequestBody("image/*".toMediaTypeOrNull())
+                        fotosParts.add(MultipartBody.Part.createFormData("Fotos", tmp.name, body))
+                    }
                 }
             }
 
-            val resp = postApi.updatePost(
+            val response = postApi.updatePost(
                 "Bearer $token",
                 postId,
                 tituloPart,
@@ -115,9 +124,77 @@ class PostRepository {
                 longitudePart,
                 if (fotosParts.isNotEmpty()) fotosParts else null
             )
-            resp.isSuccessful
+
+            response.isSuccessful
         } catch (_: Exception) {
             false
+        }
+    }
+
+    suspend fun deletePost(token: String, postId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            postApi.deletePost("Bearer $token", postId).isSuccessful
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    // Analizar imagen
+    suspend fun analyzeImage(
+        context: Context,
+        token: String,
+        imageUri: Uri
+    ): Pair<Boolean, String> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val file = FileUtils.getFileFromUri(context, imageUri)
+                    ?: return@withContext false to "Archivo no encontrado"
+
+                val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
+                val imagePart = MultipartBody.Part.createFormData("file", file.name, requestFile)
+
+                val response = postApi.analyzeImage("Bearer $token", imagePart)
+                if (response.isSuccessful) {
+                    val body = response.body()?.string() ?: return@withContext false to "Respuesta vacía"
+                    val json = JSONObject(body)
+                    val isSafe = json.optBoolean("isSafe", false)
+                    val message = if (isSafe) "Imagen segura" else "Imagen con contenido no permitido"
+                    isSafe to message
+                } else {
+                    false to "Error del servidor (${response.code()})"
+                }
+            } catch (e: Exception) {
+                false to (e.localizedMessage ?: "Error desconocido")
+            }
+        }
+    }
+
+    // Analizar texto
+    suspend fun analyzeText(token: String, text: String): Pair<Boolean, String> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val escapedText = text
+                    .replace("\\", "\\\\")
+                    .replace("\r", "\\r")
+                    .replace("\n", "\\n")
+                    .replace("\"", "\\\"")
+
+                val jsonBody = """{"descripcion": "$escapedText"}"""
+                val requestBody = jsonBody.toRequestBody("application/json".toMediaTypeOrNull())
+
+                val response = postApi.analyzeText("Bearer $token", requestBody)
+                if (response.isSuccessful) {
+                    val body = response.body()?.string() ?: return@withContext false to "Respuesta vacía"
+                    val json = JSONObject(body)
+                    val isSafe = json.optBoolean("isSafe", false)
+                    val message = json.optString("message", "Sin mensaje")
+                    isSafe to message
+                } else {
+                    false to "Error del servidor (${response.code()})"
+                }
+            } catch (e: Exception) {
+                false to (e.localizedMessage ?: "Error desconocido")
+            }
         }
     }
 
@@ -128,20 +205,17 @@ class PostRepository {
             val res = client.newCall(req).execute()
             if (!res.isSuccessful) return null
             val bytes = res.body?.bytes() ?: return null
-            val f = File(context.cacheDir, "orig_${System.currentTimeMillis()}.jpg")
-            f.outputStream().use { it.write(bytes) }
-            f
+            val file = File(context.cacheDir, "cache_${System.currentTimeMillis()}.jpg")
+            file.outputStream().use { it.write(bytes) }
+            file
         } catch (_: Exception) {
             null
         }
     }
 
-    suspend fun deletePost(token: String, postId: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val response = postApi.deletePost("Bearer $token", postId)
-            response.isSuccessful
-        } catch (_: Exception) {
-            false
-        }
-    }
+    // Helpers
+    private fun String.clean(): String = replace("\r", " ").replace("\n", " ").trim()
+
+    private fun String.toRequestBodyUtf8() =
+        toRequestBody("text/plain; charset=utf-8".toMediaTypeOrNull())
 }

@@ -179,8 +179,8 @@ fun SettingsScreen(
                 )
 
                 SettingsOption(
-                    icon = Icons.Default.LocationOn,
-                    title = "Editar ubicación",
+                    icon = Icons.Default.ListAlt, // 👈 Icono de lista
+                    title = "Ver publicaciones",
                     onClick = {
                         coroutineScope.launch {
                             snackbarHostState.showSnackbar(
@@ -232,12 +232,7 @@ fun SettingsScreen(
                     icon = Icons.Default.Info,
                     title = "Ver términos y políticas",
                     onClick = {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(
-                                "Funcionalidad próximamente disponible",
-                                duration = SnackbarDuration.Short
-                            )
-                        }
+                        navController.navigate("termsAndPolicies") // 👈 Nueva navegación
                     }
                 )
                 // 🆕 AGREGAR AYUDA

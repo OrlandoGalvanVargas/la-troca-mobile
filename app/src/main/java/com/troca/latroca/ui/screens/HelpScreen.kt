@@ -425,7 +425,7 @@ fun ContactSection() {
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "privacidad.latroca@gmail.com",
+                text = "privacidad.latroca.app@gmail.com",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White,

@@ -499,41 +499,17 @@ fun CompleteProfileScreen(
         )
     }
 
-    // Modal de éxito (ya lo tienes)
     if (showSuccessAlert) {
-        var countdown by remember { mutableStateOf(3) }
-
-        LaunchedEffect(showSuccessAlert) {
-            while (countdown > 0) {
-                delay(1000)
-                countdown--
-            }
-            if (showSuccessAlert) {
-                showSuccessAlert = false
-                navController.navigate("home") {
-                    popUpTo(0) { inclusive = true }
-                }
+        LaunchedEffect(Unit) {
+            delay(1300) // 1.3 segundos
+            showSuccessAlert = false
+            navController.navigate("home") {
+                popUpTo(0) { inclusive = true }
             }
         }
 
         AlertDialog(
             onDismissRequest = { },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showSuccessAlert = false
-                        navController.navigate("home") {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF10B981)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Ir a Home")
-                }
-            },
             title = {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -547,7 +523,7 @@ fun CompleteProfileScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "¡Cuenta Creada!",
+                        text = "¡Registro exitoso!",
                         textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
@@ -560,24 +536,20 @@ fun CompleteProfileScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Tu registro se completó exitosamente",
+                        text = "Tu cuenta ha sido creada correctamente.",
                         textAlign = TextAlign.Center,
                         fontSize = 16.sp
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Redirigiendo en $countdown segundos...",
-                        textAlign = TextAlign.Center,
-                        fontSize = 14.sp,
-                        color = Color(0xFFEF4444),
-                        fontWeight = FontWeight.Medium
-                    )
                 }
             },
+            // Sin botones ni confirmación
+            confirmButton = {},
+            dismissButton = {},
             containerColor = Color.White,
             shape = RoundedCornerShape(20.dp)
         )
     }
+
 
     Scaffold(
         containerColor = Color.White,
@@ -588,10 +560,11 @@ fun CompleteProfileScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
+                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.Start
         ) {
-            Spacer(modifier = Modifier.height(20.dp))
+            // 📍 Reducido el espacio superior para subir todo el contenido
+            Spacer(modifier = Modifier.height(32.dp))
 
             Text(
                 text = "Configura tu perfil",
@@ -605,7 +578,7 @@ fun CompleteProfileScreen(
                 text = "Completa esta información para empezar a intercambiar",
                 fontSize = 14.sp,
                 color = Color(0xFF718096),
-                modifier = Modifier.padding(bottom = 40.dp)
+                modifier = Modifier.padding(bottom = 24.dp) // Reducido de 40dp
             )
 
             if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -653,7 +626,7 @@ fun CompleteProfileScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 32.dp),
+                    .padding(bottom = 24.dp), // Reducido de 32dp
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -669,7 +642,7 @@ fun CompleteProfileScreen(
                 Surface(
                     onClick = { showImagePicker = true },
                     modifier = Modifier
-                        .size(160.dp)
+                        .size(140.dp) // Reducido ligeramente de 160dp
                         .clip(CircleShape),
                     color = Color(0xFFF7FAFC),
                     shape = CircleShape,
@@ -710,7 +683,7 @@ fun CompleteProfileScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = 20.dp) // Reducido de 24dp
             ) {
                 Text(
                     text = "Biografía:",
@@ -775,7 +748,7 @@ fun CompleteProfileScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 40.dp)
+                    .padding(bottom = 32.dp) // Reducido de 40dp
             ) {
                 Text(
                     text = "Ubicación:",
@@ -891,7 +864,7 @@ fun CompleteProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp)) // Reducido de 20dp
 
             Button(
                 onClick = {
@@ -966,10 +939,10 @@ fun CompleteProfileScreen(
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(30.dp))
+                    Spacer(modifier = Modifier.height(24.dp)) // Reducido de 30dp
                 }
             } else {
-                Spacer(modifier = Modifier.height(50.dp))
+                Spacer(modifier = Modifier.height(40.dp)) // Reducido de 50dp
             }
         }
     }

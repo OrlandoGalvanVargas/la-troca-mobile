@@ -70,7 +70,11 @@ dependencies {
 // Check for the latest version
     implementation(libs.androidx.core.ktx)
 
-
+    // Para EncryptedSharedPreferences (guardar token de forma segura)
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.navigation:navigation-compose:2.7.5")
+    implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.coil-kt:coil-gif:2.5.0")
     // Core & Lifecycle
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")

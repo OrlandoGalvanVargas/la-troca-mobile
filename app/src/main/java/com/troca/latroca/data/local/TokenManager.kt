@@ -1,36 +1,50 @@
-package com.troca.latroca.data.local
+package com.example.latroca.data.local
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "token_store")
+class TokenManager(context: Context) {
 
-class TokenManager(private val context: Context) {
+    private val masterKey = MasterKey.Builder(context)
+        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+        .build()
+
+    private val sharedPreferences: SharedPreferences = EncryptedSharedPreferences.create(
+        context,
+        "auth_prefs",
+        masterKey,
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    )
+
     companion object {
-        private val TOKEN_KEY = stringPreferencesKey("auth_token")
+        private const val KEY_TOKEN = "auth_token"
+        private const val KEY_USER_ID = "user_id"
     }
 
-    suspend fun saveToken(token: String) {
-        context.dataStore.edit { preferences ->
-            preferences[TOKEN_KEY] = token
-        }
+    fun saveToken(token: String) {
+        sharedPreferences.edit().putString(KEY_TOKEN, token).apply()
     }
 
-    fun getToken(): Flow<String?> {
-        return context.dataStore.data.map { preferences ->
-            preferences[TOKEN_KEY]
-        }
+    fun getToken(): String? {
+        return sharedPreferences.getString(KEY_TOKEN, null)
     }
 
-    suspend fun clearToken() {
-        context.dataStore.edit { preferences ->
-            preferences.remove(TOKEN_KEY)
-        }
+    fun saveUserId(userId: String) {
+        sharedPreferences.edit().putString(KEY_USER_ID, userId).apply()
+    }
+
+    fun getUserId(): String? {
+        return sharedPreferences.getString(KEY_USER_ID, null)
+    }
+
+    fun clearAll() {
+        sharedPreferences.edit().clear().apply()
+    }
+
+    fun hasToken(): Boolean {
+        return getToken() != null
     }
 }

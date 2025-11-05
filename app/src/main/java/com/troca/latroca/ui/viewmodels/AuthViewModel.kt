@@ -4,6 +4,7 @@ import android.util.Base64
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.latroca.data.local.TokenManager
 import com.troca.latroca.data.models.UserProfileResponse
 import com.troca.latroca.data.repository.AuthRepository
 import com.troca.latroca.domain.models.AuthResult
@@ -13,7 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
+class AuthViewModel(private val authRepository: AuthRepository,     private val tokenManager: TokenManager) : ViewModel() {
 
     private val _loginState = MutableStateFlow<AuthResult<String>>(AuthResult.Idle)
     val loginState: StateFlow<AuthResult<String>> = _loginState.asStateFlow()
@@ -25,6 +26,22 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
     private val _currentToken = MutableStateFlow<String?>(null)
     val currentToken: StateFlow<String?> = _currentToken.asStateFlow()
 
+    private val _userProfile = MutableStateFlow<UserProfileResponse?>(null)
+    val userProfile: StateFlow<UserProfileResponse?> = _userProfile.asStateFlow()
+
+    // 🆕 Inicializar: Cargar token guardado
+    init {
+        loadSavedToken()
+    }
+
+    private fun loadSavedToken() {
+        val savedToken = tokenManager.getToken()
+        if (!savedToken.isNullOrBlank()) {
+            _currentToken.value = savedToken
+            // Cargar perfil automáticamente si hay token
+            loadUserProfile()
+        }
+    }
     fun getToken(): String? = _currentToken.value
 
     fun getUserId(): String {
@@ -53,6 +70,8 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
 
                 if (result is AuthResult.Success) {
                     _currentToken.value = result.data  // 👈 Actualizar StateFlow
+                    tokenManager.saveToken(result.data)  // 👈 Guardar token
+                    loadUserProfile()  // 👈 Cargar perfil después de login
                 }
 
                 _loginState.value = result
@@ -70,6 +89,8 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
 
                 if (result is AuthResult.Success) {
                     _currentToken.value = result.data  // 👈 Actualizar StateFlow
+                    tokenManager.saveToken(result.data)  // 👈 Guardar token
+                    loadUserProfile()  // 👈 Cargar perfil después de login
                 }
 
                 _loginState.value = result
@@ -79,8 +100,6 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
     }
 
-    private val _userProfile = MutableStateFlow<UserProfileResponse?>(null)
-    val userProfile: StateFlow<UserProfileResponse?> = _userProfile.asStateFlow()
 
     fun loadUserProfile() {
         viewModelScope.launch {
@@ -99,39 +118,7 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
     }
 
-    fun register(
-        nombre: String,
-        email: String,
-        password: String,
-        bio: String,
-        ubicacion: String,
-        latitude: Double,
-        longitude: Double,
-        imageFile: java.io.File? = null
-    ) {
-        if (nombre.isBlank() || email.isBlank() || password.isBlank() || bio.isBlank() || ubicacion.isBlank()) {
-            _registerState.value = AuthResult.Error("Todos los campos son requeridos")
-            return
-        }
 
-        _registerState.value = AuthResult.Loading
-        viewModelScope.launch {
-            try {
-                _registerState.value = authRepository.register(
-                    nombre,
-                    email,
-                    password,
-                    bio,
-                    ubicacion,
-                    latitude,
-                    longitude,
-                    imageFile
-                )
-            } catch (e: Exception) {
-                _registerState.value = AuthResult.Error("Error en el registro: ${e.message}")
-            }
-        }
-    }
 
     fun deactivateAccount(reason: String) {
         viewModelScope.launch {
@@ -155,23 +142,13 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         _loginState.value = AuthResult.Idle
         _registerState.value = AuthResult.Idle
         _currentToken.value = null  // 👈 Limpiar token
+        _userProfile.value = null
+        tokenManager.clearAll()  // 👈 Limpiar token guardado
     }
 
     fun resetLoginState() {
         _loginState.value = AuthResult.Idle
     }
 
-    fun resetRegisterState() {
-        _registerState.value = AuthResult.Idle
-    }
 
-    fun clearAllStates() {
-        _loginState.value = AuthResult.Idle
-        _registerState.value = AuthResult.Idle
-        _currentToken.value = null  // 👈 Limpiar token
-    }
-
-    val isLoading: Boolean
-        get() = loginState.value is AuthResult.Loading ||
-                registerState.value is AuthResult.Loading
 }

@@ -8,7 +8,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,7 +19,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import com.troca.latroca.ui.components.AlertTop
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -33,17 +31,42 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.latroca.ui.utils.clickableOnce
+import com.google.android.gms.location.*
+import com.troca.latroca.ui.components.AlertTop
 import com.troca.latroca.ui.components.ImagePickerDialog
+import com.troca.latroca.ui.components.LoadingModal
 import com.troca.latroca.ui.viewmodels.AuthViewModel
 import com.troca.latroca.ui.viewmodels.PostViewModel
-import com.google.android.gms.location.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
-private fun getRealLocation(context: android.content.Context, onLocationResult: (String?, Double, Double) -> Unit) {
+// Categorías predefinidas
+private val CATEGORIAS = listOf(
+    "Electrónicos",
+    "Muebles",
+    "Ropa y Accesorios",
+    "Deportes y Fitness",
+    "Libros y Revistas",
+    "Juguetes y Juegos",
+    "Hogar y Jardín",
+    "Herramientas",
+    "Vehículos y Accesorios",
+    "Arte y Manualidades",
+    "Música e Instrumentos",
+    "Mascotas y Accesorios",
+    "Alimentos y Bebidas",
+    "Salud y Belleza",
+    "Otro"
+)
+
+private fun getRealLocation(
+    context: android.content.Context,
+    onLocationResult: (String?, Double, Double) -> Unit
+) {
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
     val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000L).build()
 
@@ -75,7 +98,11 @@ private fun getRealLocation(context: android.content.Context, onLocationResult: 
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
         PackageManager.PERMISSION_GRANTED
     ) {
-        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, android.os.Looper.getMainLooper())
+        fusedLocationClient.requestLocationUpdates(
+            locationRequest,
+            locationCallback,
+            android.os.Looper.getMainLooper()
+        )
     } else {
         onLocationResult("Permisos de ubicación no concedidos", 0.0, 0.0)
     }
@@ -103,13 +130,13 @@ fun NewPublicationScreen(
 
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var showImagePicker by remember { mutableStateOf(false) }
+    var showCategoryDropdown by remember { mutableStateOf(false) }
 
     var isPublishing by remember { mutableStateOf(false) }
-    var isWaitingAfterPublish by remember { mutableStateOf(false) }
     var showSuccess by remember { mutableStateOf(false) }
     var showError by remember { mutableStateOf(false) }
 
-    // IA
+    // IA Validación
     var tituloSeguro by remember { mutableStateOf<Boolean?>(null) }
     var descripcionSegura by remember { mutableStateOf<Boolean?>(null) }
     var necesidadSegura by remember { mutableStateOf<Boolean?>(null) }
@@ -133,12 +160,15 @@ fun NewPublicationScreen(
         if (it) cameraLauncher.launch(photoUri)
     }
 
-    fun requestLocation() {
-        val hasFine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
-        val hasCoarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
-        if (hasFine && hasCoarse) {
+    // 🌍 Launcher para permisos de ubicación
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+
+        if (fineGranted || coarseGranted) {
+            // Permisos concedidos, obtener ubicación
             isGettingLocation = true
             getRealLocation(context) { name, lat, lon ->
                 ubicacion = name ?: "Desconocida"
@@ -149,43 +179,89 @@ fun NewPublicationScreen(
         }
     }
 
-    // IA Validación
+    fun requestLocation() {
+        val hasFine = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasFine || hasCoarse) {
+            // Ya tiene permisos, obtener ubicación directamente
+            isGettingLocation = true
+            getRealLocation(context) { name, lat, lon ->
+                ubicacion = name ?: "Desconocida"
+                latitude = lat
+                longitude = lon
+                isGettingLocation = false
+            }
+        } else {
+            // Solicitar permisos
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    // IA Validación con debounce
     LaunchedEffect(titulo) {
-        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        tituloSeguro = null
+        if (titulo.isBlank()) return@LaunchedEffect
         delay(1000)
-        if (titulo.isNotBlank()) tituloSeguro = postViewModel.analyzeText(token, titulo).first
+        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        tituloSeguro = postViewModel.analyzeText(token, titulo).first
     }
+
     LaunchedEffect(descripcion) {
-        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        descripcionSegura = null
+        if (descripcion.isBlank()) return@LaunchedEffect
         delay(1000)
-        if (descripcion.isNotBlank()) descripcionSegura = postViewModel.analyzeText(token, descripcion).first
+        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        descripcionSegura = postViewModel.analyzeText(token, descripcion).first
     }
+
     LaunchedEffect(necesidad) {
-        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        necesidadSegura = null
+        if (necesidad.isBlank()) return@LaunchedEffect
         delay(1000)
-        if (necesidad.isNotBlank()) necesidadSegura = postViewModel.analyzeText(token, necesidad).first
+        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        necesidadSegura = postViewModel.analyzeText(token, necesidad).first
     }
+
     LaunchedEffect(categoria) {
-        val token = authViewModel.getToken() ?: return@LaunchedEffect
+        categoriaSegura = null
+        if (categoria.isBlank()) return@LaunchedEffect
         delay(1000)
-        if (categoria.isNotBlank()) categoriaSegura = postViewModel.analyzeText(token, categoria).first
-    }
-    LaunchedEffect(selectedImageUri) {
         val token = authViewModel.getToken() ?: return@LaunchedEffect
+        categoriaSegura = postViewModel.analyzeText(token, categoria).first
+    }
+
+    LaunchedEffect(selectedImageUri) {
         imagenSegura = null
+        val token = authViewModel.getToken() ?: return@LaunchedEffect
         selectedImageUri?.let {
             imagenSegura = postViewModel.analyzeImage(context, token, it).first
         }
     }
 
-
+    // Auto-navegación después de éxito
     LaunchedEffect(showSuccess) {
         if (showSuccess) {
             delay(2000)
             showSuccess = false
-            navController.navigate("home")
+            navController.navigate("home") {
+                popUpTo("home") { inclusive = true }
+            }
         }
     }
+
     LaunchedEffect(showError) {
         if (showError) {
             delay(2000)
@@ -193,13 +269,26 @@ fun NewPublicationScreen(
         }
     }
 
+    // 🚀 LoadingModal
+    LoadingModal(
+        isVisible = isPublishing,
+        message = "Publicando tu producto..."
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Nueva publicación", fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Atrás", tint = Color(0xFFE53935))
+                    IconButton(
+                        onClick = { navController.popBackStack() },
+                        enabled = !isPublishing
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Atrás",
+                            tint = if (isPublishing) Color(0xFFCBD5E0) else Color(0xFFE53935)
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -215,7 +304,7 @@ fun NewPublicationScreen(
                     .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Foto
+                // 📸 Foto del producto
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -234,7 +323,9 @@ fun NewPublicationScreen(
                             .height(250.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color(0xFFF7FAFC))
-                            .clickable { showImagePicker = true },
+                            .clickableOnce(enabled = !isPublishing) {
+                                showImagePicker = true
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         selectedImageUri?.let {
@@ -263,13 +354,89 @@ fun NewPublicationScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Campos a validar con IA
-                CampoIA("Título", titulo, tituloSeguro) { titulo = it }
-                CampoIA("Descripción", descripcion, descripcionSegura, 100.dp) { descripcion = it }
-                CampoIA("Categoría", categoria, categoriaSegura) { categoria = it }
-                CampoIA("Necesidad (qué buscas a cambio)", necesidad, necesidadSegura, 100.dp) { necesidad = it }
+                // 📝 Campos de texto con validación IA
+                CampoIA("Título", titulo, tituloSeguro, isPublishing) { if (!isPublishing) titulo = it }
+                CampoIA("Descripción", descripcion, descripcionSegura, isPublishing, 100.dp) {
+                    if (!isPublishing) descripcion = it
+                }
 
-                // Ubicación
+                // 📂 Dropdown de Categorías
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 14.dp)
+                ) {
+                    Text(
+                        "Categoría",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFE53935),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+
+                    ExposedDropdownMenuBox(
+                        expanded = showCategoryDropdown && !isPublishing,
+                        onExpandedChange = { if (!isPublishing) showCategoryDropdown = it }
+                    ) {
+                        OutlinedTextField(
+                            value = categoria,
+                            onValueChange = {},
+                            readOnly = true,
+                            enabled = !isPublishing,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            placeholder = { Text("Selecciona una categoría", color = Color(0xFFB0BEC5)) },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = showCategoryDropdown)
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFFE53935),
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                disabledBorderColor = Color(0xFFE2E8F0),
+                                disabledTextColor = Color(0xFF718096)
+                            )
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = showCategoryDropdown,
+                            onDismissRequest = { showCategoryDropdown = false }
+                        ) {
+                            CATEGORIAS.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat) },
+                                    onClick = {
+                                        categoria = cat
+                                        showCategoryDropdown = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(20.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (categoriaSegura == false) {
+                            Text(
+                                text = "Contenido inapropiado detectado",
+                                color = Color(0xFFD32F2F),
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Start,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                CampoIA("Necesidad (qué buscas a cambio)", necesidad, necesidadSegura, isPublishing, 100.dp) {
+                    if (!isPublishing) necesidad = it
+                }
+
+                // 🌍 Ubicación
                 Spacer(modifier = Modifier.height(12.dp))
                 Column(
                     modifier = Modifier
@@ -286,33 +453,53 @@ fun NewPublicationScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(
                             value = ubicacion,
-                            onValueChange = { ubicacion = it },
+                            onValueChange = { if (!isPublishing) ubicacion = it },
                             leadingIcon = {
-                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFFE53935))
+                                Icon(
+                                    Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = if (isPublishing) Color(0xFFCBD5E0) else Color(0xFFE53935)
+                                )
                             },
+                            enabled = !isPublishing,
                             modifier = Modifier.weight(1f),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFFE53935),
-                                unfocusedBorderColor = Color(0xFFE2E8F0)
+                                unfocusedBorderColor = Color(0xFFE2E8F0),
+                                disabledBorderColor = Color(0xFFE2E8F0),
+                                disabledTextColor = Color(0xFF718096)
                             )
                         )
                         IconButton(
                             onClick = { requestLocation() },
+                            enabled = !isPublishing && !isGettingLocation,
                             modifier = Modifier
                                 .padding(start = 8.dp)
                                 .size(50.dp)
-                                .background(Color(0xFFFFCDD2), RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isPublishing) Color(0xFFE2E8F0) else Color(0xFFFFCDD2),
+                                    RoundedCornerShape(8.dp)
+                                )
                         ) {
                             if (isGettingLocation)
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color(0xFFE53935)
+                                )
                             else
-                                Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color(0xFFE53935))
+                                Icon(
+                                    Icons.Default.MyLocation,
+                                    contentDescription = null,
+                                    tint = if (isPublishing) Color(0xFFCBD5E0) else Color(0xFFE53935)
+                                )
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // ✅ Validar que todo esté listo
                 val isReady = tituloSeguro == true &&
                         descripcionSegura == true &&
                         necesidadSegura == true &&
@@ -324,8 +511,7 @@ fun NewPublicationScreen(
                         necesidad.isNotBlank() &&
                         ubicacion.isNotBlank() &&
                         selectedImageUri != null &&
-                        !isPublishing &&
-                        !isWaitingAfterPublish
+                        !isPublishing
 
                 Button(
                     onClick = {
@@ -344,22 +530,12 @@ fun NewPublicationScreen(
                                 longitude,
                                 selectedImageUri!!,
                                 onSuccess = {
-                                    coroutineScope.launch {
-                                        isPublishing = false
-                                        isWaitingAfterPublish = true
-                                        showSuccess = true
-                                        delay(2500)
-                                        isWaitingAfterPublish = false
-                                    }
+                                    isPublishing = false
+                                    showSuccess = true
                                 },
                                 onError = {
-                                    coroutineScope.launch {
-                                        isPublishing = false
-                                        isWaitingAfterPublish = true
-                                        showError = true
-                                        delay(2500)
-                                        isWaitingAfterPublish = false
-                                    }
+                                    isPublishing = false
+                                    showError = true
                                 }
                             )
                         }
@@ -367,24 +543,21 @@ fun NewPublicationScreen(
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp),
+                        .height(56.dp)
+                        .clickableOnce(enabled = isReady) {
+                            // El onClick del Button maneja la lógica
+                        },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = when {
-                            isPublishing || isWaitingAfterPublish -> Color(0xFFB0BEC5)
-                            isReady -> Color(0xFFFF6B6B)
-                            else -> Color.LightGray
-                        }
+                        containerColor = if (isReady) Color(0xFFFF6B6B) else Color.LightGray,
+                        disabledContainerColor = Color(0xFFB0BEC5)
                     ),
                     enabled = isReady
                 ) {
-                    if (isPublishing)
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    else
-                        Text("Publicar", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Publicar",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(30.dp))
@@ -396,7 +569,7 @@ fun NewPublicationScreen(
                 AlertTop("Error al crear la publicación", Color(0xFFD32F2F), Icons.Default.Error)
         }
 
-        if (showImagePicker) {
+        if (showImagePicker && !isPublishing) {
             ImagePickerDialog(
                 onTakePhoto = {
                     showImagePicker = false
@@ -417,7 +590,14 @@ fun NewPublicationScreen(
 }
 
 @Composable
-fun CampoIA(label: String, valor: String, seguro: Boolean?, altura: Dp = 56.dp, onChange: (String) -> Unit) {
+fun CampoIA(
+    label: String,
+    valor: String,
+    seguro: Boolean?,
+    isPublishing: Boolean,
+    altura: Dp = 56.dp,
+    onChange: (String) -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -434,13 +614,16 @@ fun CampoIA(label: String, valor: String, seguro: Boolean?, altura: Dp = 56.dp, 
         OutlinedTextField(
             value = valor,
             onValueChange = onChange,
+            enabled = !isPublishing,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(altura),
             placeholder = { Text("Escribe aquí...", color = Color(0xFFB0BEC5)) },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFFE53935),
-                unfocusedBorderColor = Color(0xFFE2E8F0)
+                unfocusedBorderColor = Color(0xFFE2E8F0),
+                disabledBorderColor = Color(0xFFE2E8F0),
+                disabledTextColor = Color(0xFF718096)
             )
         )
 
@@ -462,8 +645,3 @@ fun CampoIA(label: String, valor: String, seguro: Boolean?, altura: Dp = 56.dp, 
         }
     }
 }
-
-
-
-
-

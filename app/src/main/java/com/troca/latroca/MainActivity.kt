@@ -3,16 +3,23 @@ package com.troca.latroca
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.latroca.data.local.TokenManager
+import com.example.latroca.ui.screens.TermsAndPoliciesScreen
 import com.troca.latroca.data.repository.AuthRepository
 import com.troca.latroca.data.repository.PostRepository
 import com.troca.latroca.ui.screens.*
@@ -37,16 +44,58 @@ class MainActivity : ComponentActivity() {
                     val authRepository = remember { AuthRepository() }
                     val postRepository = remember { PostRepository() }
 
-                    val authViewModel = remember { AuthViewModel(authRepository) }
-                    // 👇 CAMBIO: Pasar authViewModel al RegistrationViewModel
-                    val registrationViewModel = remember {
-                        RegistrationViewModel(authRepository, authViewModel)
-                    }
+                    // 🆕 Crear TokenManager
+                    val tokenManager = remember { TokenManager(applicationContext) }
+
+                    // ✅ DESPUÉS (usa viewModel para caché)
+                    val authViewModel: AuthViewModel = viewModel(
+                        factory = object : ViewModelProvider.Factory {
+                            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                return AuthViewModel(authRepository, tokenManager) as T
+                            }
+                        }
+                    )
+
+                    val registrationViewModel: RegistrationViewModel = viewModel(
+                        factory = object : ViewModelProvider.Factory {
+                            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                                return RegistrationViewModel(authRepository, authViewModel) as T
+                            }
+                        }
+                    )
+
                     val postViewModel = remember { PostViewModel(postRepository) }
+
+                    // 🆕 Determinar pantalla inicial basada en si hay token
+                    val startDestination = if (tokenManager.hasToken()) "home" else "login"
 
                     NavHost(
                         navController = navController,
-                        startDestination = "login"
+                        startDestination = startDestination,
+                        enterTransition = {
+                            slideIntoContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Left,
+                                animationSpec = tween(300)
+                            )
+                        },
+                        exitTransition = {
+                            slideOutOfContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Left,
+                                animationSpec = tween(300)
+                            )
+                        },
+                        popEnterTransition = {
+                            slideIntoContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Right,
+                                animationSpec = tween(300)
+                            )
+                        },
+                        popExitTransition = {
+                            slideOutOfContainer(
+                                AnimatedContentTransitionScope.SlideDirection.Right,
+                                animationSpec = tween(300)
+                            )
+                        }
                     ) {
                         composable("login") {
                             LoginScreen(
@@ -86,6 +135,9 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("help") {
                             HelpScreen(navController = navController)
+                        }
+                        composable("termsAndPolicies") {
+                            TermsAndPoliciesScreen(navController = navController)
                         }
                         composable("home") {
                             HomeScreen(

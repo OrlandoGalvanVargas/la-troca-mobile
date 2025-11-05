@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.latroca"
+    namespace = "com.troca.latroca"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.latroca"
+        applicationId = "com.troca.latroca"
         minSdk = 30
         targetSdk = 35
         versionCode = 1

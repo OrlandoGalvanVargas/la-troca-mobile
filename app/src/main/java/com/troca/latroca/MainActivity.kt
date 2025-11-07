@@ -21,10 +21,12 @@ import androidx.navigation.navArgument
 import com.example.latroca.data.local.TokenManager
 import com.example.latroca.ui.screens.TermsAndPoliciesScreen
 import com.troca.latroca.data.repository.AuthRepository
+import com.troca.latroca.data.repository.ChatRepository
 import com.troca.latroca.data.repository.PostRepository
 import com.troca.latroca.ui.screens.*
 import com.troca.latroca.ui.theme.LaTrocaTheme
 import com.troca.latroca.ui.viewmodels.AuthViewModel
+import com.troca.latroca.ui.viewmodels.ChatViewModel
 import com.troca.latroca.ui.viewmodels.PostViewModel
 import com.troca.latroca.ui.viewmodels.RegistrationViewModel
 
@@ -68,6 +70,9 @@ class MainActivity : ComponentActivity() {
 
                     // 🆕 Determinar pantalla inicial basada en si hay token
                     val startDestination = if (tokenManager.hasToken()) "home" else "login"
+
+                    val chatRepository = ChatRepository()
+                    val chatViewModel = ChatViewModel(chatRepository)
 
                     NavHost(
                         navController = navController,
@@ -152,7 +157,8 @@ class MainActivity : ComponentActivity() {
                                     }
                                 },
                                 authViewModel = authViewModel,
-                                postViewModel = postViewModel
+                                postViewModel = postViewModel,
+                                chatViewModel = chatViewModel  // 👈 Agregar esto
                             )
                         }
 
@@ -180,9 +186,58 @@ class MainActivity : ComponentActivity() {
                                 navController = navController,
                                 postId = postId,
                                 postViewModel = postViewModel,
+                                authViewModel = authViewModel,
+                                chatViewModel = chatViewModel  // 👈 Agregar esto
+                            )
+                        }
+
+                        // Lista de chats
+                        composable("chat_list") {
+                            ChatListScreen(
+                                navController = navController,
+                                chatViewModel = chatViewModel, // Necesitas inyectar este ViewModel
                                 authViewModel = authViewModel
                             )
                         }
+
+                        // Ruta de conversación individual
+                        composable(
+                            route = "chat_conversation/{chatId}/{otherUserName}/{otherUserId}",
+                            arguments = listOf(
+                                navArgument("chatId") { type = NavType.StringType },
+                                navArgument("otherUserName") { type = NavType.StringType },
+                                navArgument("otherUserId") { type = NavType.StringType }
+                            )
+                        ) { backStackEntry ->
+                            ChatConversationScreen(
+                                navController = navController,
+                                chatId = backStackEntry.arguments?.getString("chatId") ?: "",
+                                otherUserName = backStackEntry.arguments?.getString("otherUserName") ?: "",
+                                otherUserId = backStackEntry.arguments?.getString("otherUserId") ?: "",
+                                chatViewModel = chatViewModel,
+                                authViewModel = authViewModel
+                            )
+                        }
+
+// Conversación individual
+                        composable(
+                            "chat_conversation/{chatId}/{otherUserName}/{otherUserId}",
+                            arguments = listOf(
+                                navArgument("chatId") { type = NavType.StringType },
+                                navArgument("otherUserName") { type = NavType.StringType },
+                                navArgument("otherUserId") { type = NavType.StringType }
+                            )
+                        ) { backStackEntry ->
+                            ChatConversationScreen(
+                                navController = navController,
+                                chatId = backStackEntry.arguments?.getString("chatId") ?: "",
+                                otherUserName = backStackEntry.arguments?.getString("otherUserName") ?: "",
+                                otherUserId = backStackEntry.arguments?.getString("otherUserId") ?: "",
+                                chatViewModel = chatViewModel,
+                                authViewModel = authViewModel
+                            )
+                        }
+
                     }
                 }
             }

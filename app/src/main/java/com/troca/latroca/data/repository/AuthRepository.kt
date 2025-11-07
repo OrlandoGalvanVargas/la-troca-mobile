@@ -4,6 +4,7 @@ import com.troca.latroca.data.api.ApiClient
 import com.troca.latroca.data.api.AuthApi
 import com.troca.latroca.data.models.AuthResponse
 import com.troca.latroca.data.models.DeactivateAccountRequest
+import com.troca.latroca.data.models.GoogleLoginRequest
 import com.troca.latroca.data.models.LoginRequest
 import com.troca.latroca.data.models.UserProfileResponse
 import com.troca.latroca.domain.models.AuthResult
@@ -33,9 +34,18 @@ class AuthRepository {
     suspend fun loginWithGoogle(googleIdToken: String): AuthResult<String> =
         withContext(Dispatchers.IO) {
             try {
-                val response = authApi.loginWithGoogle(AuthApi.GoogleLoginRequest(googleIdToken))
-                handleLoginResponse(response)  // 👈 Usar la misma función
+                android.util.Log.d("AuthRepository", "Token a enviar (primeros 30): ${googleIdToken.take(30)}...")
+
+                // 👇 CAMBIAR ESTO
+                val request = GoogleLoginRequest(idToken = googleIdToken)
+                val response = authApi.loginWithGoogle(request)
+
+                android.util.Log.d("AuthRepository", "Request JSON: ${com.google.gson.Gson().toJson(request)}")
+                android.util.Log.d("AuthRepository", "Response code: ${response.code()}")
+
+                handleLoginResponse(response)
             } catch (e: Exception) {
+                android.util.Log.e("AuthRepository", "Exception en loginWithGoogle", e)
                 AuthResult.Error("Error de conexión: ${e.message}")
             }
         }

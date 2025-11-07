@@ -3,6 +3,7 @@ package com.troca.latroca.ui.screens
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -10,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -33,6 +35,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.troca.latroca.ui.components.AlertTop
 import com.troca.latroca.ui.components.ImagePickerDialog
 import com.troca.latroca.ui.viewmodels.AuthViewModel
+import com.troca.latroca.ui.viewmodels.ChatViewModel
 import com.troca.latroca.ui.viewmodels.PostViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -46,7 +49,8 @@ fun PublicationDetailScreen(
     navController: NavController,
     postId: String,
     postViewModel: PostViewModel,
-    authViewModel: AuthViewModel
+    authViewModel: AuthViewModel,
+    chatViewModel: ChatViewModel // 👈 Agregar este parámetro
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -206,6 +210,139 @@ fun PublicationDetailScreen(
                         CampoSoloLectura("Ubicación", post.ubicacion.manual, icon = Icons.Default.Place)
                         CampoSoloLectura("Fecha de publicación", post.creadoEn.substring(0, 10), icon = Icons.Default.CalendarToday)
                         CampoSoloLectura("Necesidad", post.necesidad)
+
+                        // 👤 SECCIÓN: Publicado por (solo si NO es el owner)
+                        if (!isOwner) {
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Contenedor de "Publicado por"
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFFFF5F5), RoundedCornerShape(12.dp))
+                                    .padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "Publicado por",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFE53935),
+                                    fontWeight = FontWeight.Medium
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        // Avatar del usuario (placeholder)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFFE53935)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Person,
+                                                contentDescription = "Avatar",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(28.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(12.dp))
+
+                                        Column {
+                                            Text(
+                                                text = "Valentino Nora",
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF2D3748)
+                                            )
+                                            Text(
+                                                text = "Usuario activo",
+                                                fontSize = 13.sp,
+                                                color = Color(0xFF718096)
+                                            )
+                                        }
+                                    }
+
+                                    // Botón "Ver perfil"
+                                    Button(
+                                        onClick = {
+                                            Toast.makeText(
+                                                context,
+                                                "Funcionalidad próximamente",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFFFF8A8A)
+                                        ),
+                                        shape = RoundedCornerShape(20.dp),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Ver perfil",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+// 💬 BOTÓN: Abrir chat
+                            Button(
+                                onClick = {
+                                    val currentUserId = authViewModel.getUserId()
+                                    val currentUserName = authViewModel.userProfile.value?.name ?: "Usuario"
+                                    val otherUserId = post.userId
+                                    val otherUserName = "Vendedor" // TODO: Obtener del backend
+
+                                    chatViewModel.getOrCreateChat(
+                                        currentUserId = currentUserId,
+                                        currentUserName = currentUserName,
+                                        otherUserId = otherUserId,
+                                        otherUserName = otherUserName,
+                                        postId = post.id,
+                                        postTitle = post.titulo,
+                                        postImageUrl = post.fotosUrl.firstOrNull() ?: ""
+                                    ) { chatId ->
+                                        navController.navigate(
+                                            "chat_conversation/$chatId/$otherUserName/$otherUserId"
+                                        )
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF2196F3)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Chat,
+                                    contentDescription = "Chat",
+                                    tint = Color.White
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Abrir chat",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(25.dp))

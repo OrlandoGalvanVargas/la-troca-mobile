@@ -1,5 +1,6 @@
 package com.troca.latroca.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -15,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -33,7 +35,7 @@ fun DeleteAccountScreen(
     navController: NavController,
     authViewModel: AuthViewModel
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     var selectedReason by remember { mutableStateOf("") }
@@ -80,8 +82,7 @@ fun DeleteAccountScreen(
                     containerColor = Color.White
                 )
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -205,12 +206,11 @@ fun DeleteAccountScreen(
                     if (deleteImmediately) {
                         showDeleteDialog = true // 👈 Mostrar modal de confirmación
                     } else {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(
-                                "Debes confirmar que entiendes las consecuencias",
-                                duration = SnackbarDuration.Short
-                            )
-                        }
+                        Toast.makeText(
+                            context,
+                            "Debes confirmar que entiendes las consecuencias",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 },
                 modifier = Modifier
@@ -307,10 +307,11 @@ fun DeleteAccountScreen(
                                                 isProcessing = false
                                                 showDeleteDialog = false
 
-                                                snackbarHostState.showSnackbar(
-                                                    message = loginState.message,
-                                                    duration = SnackbarDuration.Long
-                                                )
+                                                Toast.makeText(
+                                                    context,
+                                                    loginState.message,
+                                                    Toast.LENGTH_LONG
+                                                ).show()
 
                                                 authViewModel.resetLoginState()
                                             }

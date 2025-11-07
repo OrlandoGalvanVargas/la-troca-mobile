@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -67,15 +68,17 @@ fun SettingsScreen(
         hasNotificationPermission = isGranted
         coroutineScope.launch {
             if (isGranted) {
-                snackbarHostState.showSnackbar(
-                    "Notificaciones activadas ✅",
-                    duration = SnackbarDuration.Short
-                )
+                Toast.makeText(
+                    context,
+                    "Notificaciones activadas",
+                    Toast.LENGTH_SHORT
+                ).show()
             } else {
-                snackbarHostState.showSnackbar(
+                Toast.makeText(
+                    context,
                     "Notificaciones desactivadas",
-                    duration = SnackbarDuration.Short
-                )
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -170,23 +173,11 @@ fun SettingsScreen(
                     title = "Editar datos de cuenta",
                     onClick = {
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar(
+                            Toast.makeText(
+                                context,
                                 "Funcionalidad próximamente disponible",
-                                duration = SnackbarDuration.Short
-                            )
-                        }
-                    }
-                )
-
-                SettingsOption(
-                    icon = Icons.Default.ListAlt, // 👈 Icono de lista
-                    title = "Ver publicaciones",
-                    onClick = {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(
-                                "Funcionalidad próximamente disponible",
-                                duration = SnackbarDuration.Short
-                            )
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     }
                 )
@@ -214,10 +205,11 @@ fun SettingsScreen(
                             }
                             context.startActivity(intent)
                             coroutineScope.launch {
-                                snackbarHostState.showSnackbar(
+                                Toast.makeText(
+                                    context,
                                     "Desactiva las notificaciones en la configuración del sistema",
-                                    duration = SnackbarDuration.Long
-                                )
+                                    Toast.LENGTH_LONG
+                                ).show()
                             }
                         }
                     }

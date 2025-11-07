@@ -2,6 +2,7 @@ package com.troca.latroca.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -531,10 +532,11 @@ fun RegisterScreen(
                     }
                 } else {
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar(
+                        Toast.makeText(
+                            context,
                             "Por favor corrige los errores en el formulario",
-                            duration = SnackbarDuration.Short
-                        )
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             },

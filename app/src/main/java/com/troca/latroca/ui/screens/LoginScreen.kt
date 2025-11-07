@@ -32,17 +32,17 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.navigation.NavController
 import com.example.latroca.ui.utils.clickableOnce
+import com.troca.latroca.R
+import com.troca.latroca.domain.models.AuthResult
+import com.troca.latroca.ui.components.LoadingModal
+import com.troca.latroca.ui.viewmodels.AuthViewModel
+import com.troca.latroca.ui.viewmodels.RegistrationViewModel
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.google.firebase.Firebase
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.auth
-import com.troca.latroca.R
-import com.troca.latroca.domain.models.AuthResult
-import com.troca.latroca.ui.components.LoadingModal
-import com.troca.latroca.ui.viewmodels.AuthViewModel
-import com.troca.latroca.ui.viewmodels.RegistrationViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -59,8 +59,8 @@ fun LoginScreen(
     registrationViewModel: RegistrationViewModel
 ) {
     val loginState by authViewModel.loginState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -120,7 +120,14 @@ fun LoginScreen(
             }
             is AuthResult.Error -> {
                 val errorMessage = (loginState as AuthResult.Error).message
+                // 👇 AGREGAR ESTE TOAST PARA DEBUG
+                Toast.makeText(
+                    context,
+                    "Error: No es posible acceder con Google",
+                    Toast.LENGTH_LONG
+                ).show()
 
+                Log.e("LoginScreen", "Error completo: $errorMessage")
                 Log.d("LoginScreen", "Error recibido: $errorMessage")
                 Log.d("LoginScreen", "isGoogleLogin: $isGoogleLogin")
 
@@ -132,12 +139,12 @@ fun LoginScreen(
                     isGoogleLogin = false
                     credentialsError = false
 
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(
-                            message = errorMessage,
-                            duration = SnackbarDuration.Long
-                        )
-                    }
+                    Toast.makeText(
+                        context,
+                        errorMessage,
+                        Toast.LENGTH_LONG
+                    ).show()
+                    Log.w("LoginScreen", "Cuenta inactiva/suspendida: $errorMessage")
 
                     authViewModel.resetLoginState()
                 }
@@ -169,12 +176,12 @@ fun LoginScreen(
                     )
 
                     if (errorMessage.contains("network", ignoreCase = true)) {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(
-                                message = "Problema de conexión. Verifica tu internet",
-                                duration = SnackbarDuration.Short
-                            )
-                        }
+                        Toast.makeText(
+                            context,
+                            "Problema de conexión. Verifica tu internet",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        Log.e("LoginScreen", "Error de red: $errorMessage")
                     }
                 }
             }
@@ -182,7 +189,6 @@ fun LoginScreen(
         }
     }
 
-    val context = LocalContext.current
     val credentialManager = CredentialManager.create(context)
     val auth = Firebase.auth
 
@@ -199,16 +205,15 @@ fun LoginScreen(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 📍 Reducido de 80dp a 32dp para subir todo
         Spacer(modifier = Modifier.height(35.dp))
 
         Image(
             painter = painterResource(id = R.drawable.la_troca_logo),
             contentDescription = "Logo La Troca",
-            modifier = Modifier.size(120.dp) // Reducido de 150dp a 120dp
+            modifier = Modifier.size(120.dp)
         )
 
-        Spacer(modifier = Modifier.height(24.dp)) // Reducido de 32dp
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             text = "Iniciar Sesión",
@@ -223,7 +228,7 @@ fun LoginScreen(
             color = Color(0xFF718096)
         )
 
-        Spacer(modifier = Modifier.height(24.dp)) // Reducido de 32dp
+        Spacer(modifier = Modifier.height(24.dp))
 
         Column(
             modifier = Modifier.fillMaxWidth()
@@ -257,7 +262,7 @@ fun LoginScreen(
                 shape = RoundedCornerShape(8.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
-                enabled = !isLoading, // Deshabilitado durante carga
+                enabled = !isLoading,
                 isError = emailError.isNotBlank() || credentialsError,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = when {
@@ -319,7 +324,7 @@ fun LoginScreen(
                     .padding(bottom = 4.dp),
                 shape = RoundedCornerShape(8.dp),
                 singleLine = true,
-                enabled = !isLoading, // Deshabilitado durante carga
+                enabled = !isLoading,
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 isError = credentialsError,
@@ -351,7 +356,7 @@ fun LoginScreen(
 
                     IconButton(
                         onClick = { passwordVisible = !passwordVisible },
-                        enabled = !isLoading // Deshabilitado durante carga
+                        enabled = !isLoading
                     ) {
                         Icon(
                             imageVector = image,
@@ -377,14 +382,13 @@ fun LoginScreen(
 
             TextButton(
                 onClick = {
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(
-                            "Funcionalidad en desarrollo",
-                            duration = SnackbarDuration.Short
-                        )
-                    }
+                    Toast.makeText(
+                        context,
+                        "Funcionalidad en desarrollo",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 },
-                enabled = !isLoading, // Deshabilitado durante carga
+                enabled = !isLoading,
                 modifier = Modifier.align(Alignment.End)
             ) {
                 Text(
@@ -395,7 +399,7 @@ fun LoginScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp)) // Reducido de 12dp
+        Spacer(modifier = Modifier.height(8.dp))
 
         Button(
             onClick = {
@@ -430,7 +434,7 @@ fun LoginScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(20.dp)) // Reducido de 30dp
+        Spacer(modifier = Modifier.height(20.dp))
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -478,7 +482,13 @@ fun LoginScreen(
                                     val googleIdTokenCredential =
                                         GoogleIdTokenCredential.createFrom(credential.data)
                                     val googleIdToken = googleIdTokenCredential.idToken
+                                    Toast.makeText(
+                                        context,
+                                        "Token obtenido correctamente",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
 
+                                    Log.d("GoogleSignIn", "Token: ${googleIdToken.take(20)}...")
                                     val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
                                     auth.signInWithCredential(firebaseCredential)
                                         .addOnCompleteListener { task ->
@@ -525,21 +535,33 @@ fun LoginScreen(
                                 }
                             } catch (e: GoogleIdTokenParsingException) {
                                 isGoogleLogin = false
-                                Toast.makeText(context, "Error al procesar token", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "Error al procesar token de Google",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                                 Log.e("SignIn", "Token error: ${e.message}")
                             } catch (e: GetCredentialException) {
                                 isGoogleLogin = false
-                                Toast.makeText(context, "Sesión de Google cancelada", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "Sesión de Google cancelada",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                                 Log.e("SignIn", "Credential error: ${e.message}")
                             } catch (e: Exception) {
                                 isGoogleLogin = false
-                                Toast.makeText(context, "Error general: ${e.message}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "Error inesperado: ${e.message}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                                 Log.e("SignIn", "Error general: ${e.message}")
                             }
                         }
                     }
                 },
-                enabled = !isLoading, // Deshabilitado durante carga
+                enabled = !isLoading,
                 modifier = Modifier
                     .size(48.dp)
                     .padding(4.dp)
@@ -560,7 +582,7 @@ fun LoginScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp)) // Reducido de 10dp
+        Spacer(modifier = Modifier.height(16.dp))
 
         Row(
             horizontalArrangement = Arrangement.Center,
@@ -579,7 +601,7 @@ fun LoginScreen(
                     credentialsError = false
                     navController.navigate("register")
                 },
-                enabled = !isLoading, // Deshabilitado durante carga
+                enabled = !isLoading,
                 contentPadding = PaddingValues(0.dp),
                 modifier = Modifier.clickableOnce(enabled = !isLoading) {
                     authViewModel.resetLoginState()
@@ -597,17 +619,7 @@ fun LoginScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(40.dp)) // Reducido de 80dp
-    }
-
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.padding(16.dp)
-        )
+        Spacer(modifier = Modifier.height(40.dp))
     }
 }
 

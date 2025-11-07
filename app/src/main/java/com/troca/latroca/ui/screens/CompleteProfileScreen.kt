@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.net.Uri
 import android.os.Build
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -157,10 +159,11 @@ fun CompleteProfileScreen(
         hasNotificationPermission = isGranted
         if (isGranted) {
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(
-                    "Notificaciones activadas ",
-                    duration = SnackbarDuration.Short
-                )
+                Toast.makeText(
+                    context,
+                    "Notificaciones activadas",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -188,12 +191,11 @@ fun CompleteProfileScreen(
                     showImageErrorDialog = true
                 } else {
                     // Otros errores genéricos
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(
-                            message = errorMessage,
-                            duration = SnackbarDuration.Long
-                        )
-                    }
+                    Toast.makeText(
+                        context,
+                        errorMessage,
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
 
                 registrationViewModel.clearErrors()
@@ -279,6 +281,11 @@ fun CompleteProfileScreen(
                     ubicacionError = validateUbicacionRealTime(locationName)
                 } else {
                     locationError = "No se pudo obtener la ubicación"
+                    Toast.makeText(
+                        context,
+                        "No se pudo obtener la ubicación",
+                        Toast.LENGTH_SHORT
+                    ).show()
                     latitude = 0.0
                     longitude = 0.0
                 }
@@ -286,6 +293,11 @@ fun CompleteProfileScreen(
         } else {
             isGettingLocation = false
             locationError = "Permiso de ubicación denegado"
+            Toast.makeText(
+                context,
+                "Permiso de ubicación denegado",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -313,6 +325,12 @@ fun CompleteProfileScreen(
     ) { isGranted ->
         if (isGranted) {
             cameraLauncher.launch(photoUri)
+        } else {
+            Toast.makeText(
+                context,
+                "Permiso de cámara denegado",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -342,6 +360,11 @@ fun CompleteProfileScreen(
 
                 } else {
                     locationError = "No se pudo obtener la ubicación"
+                    Toast.makeText(
+                        context,
+                        "No se pudo obtener la ubicación",
+                        Toast.LENGTH_SHORT
+                    ).show()
                     latitude = 0.0
                     longitude = 0.0
                 }
@@ -882,10 +905,11 @@ fun CompleteProfileScreen(
                             } else {
                                 "Por favor completa correctamente todos los campos"
                             }
-                            snackbarHostState.showSnackbar(
+                            Toast.makeText(
+                                context,
                                 errorMessage,
-                                duration = SnackbarDuration.Long
-                            )
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     }
                 },

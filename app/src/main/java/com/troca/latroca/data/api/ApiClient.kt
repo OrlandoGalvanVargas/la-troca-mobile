@@ -1,11 +1,12 @@
 package com.troca.latroca.data.api
 
+import com.google.firebase.firestore.ktx.BuildConfig
+import com.google.gson.GsonBuilder
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
-import com.troca.latroca.BuildConfig
 
 
 
@@ -28,14 +29,18 @@ object ApiClient {
         .retryOnConnectionFailure(true)
         .build()
 
+    // 🔥 Gson configurado para evitar problemas con ProGuard
+    private val gson = GsonBuilder()
+        .setLenient()
+        .serializeNulls()
+        .create()
     private val retrofit: Retrofit by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
     }
-
     val authApi: AuthApi by lazy {
         retrofit.create(AuthApi::class.java)
     }

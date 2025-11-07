@@ -1,7 +1,9 @@
 package com.troca.latroca.data.api
 
+import com.google.gson.annotations.SerializedName
 import com.troca.latroca.data.models.AuthResponse
 import com.troca.latroca.data.models.DeactivateAccountRequest
+import com.troca.latroca.data.models.GoogleLoginRequest
 import com.troca.latroca.data.models.LoginRequest
 import com.troca.latroca.data.models.UserProfileResponse
 import okhttp3.MultipartBody
@@ -51,8 +53,4 @@ interface AuthApi {
     @POST("api/Auth/login-google")
     suspend fun loginWithGoogle(@Body request: GoogleLoginRequest): Response<AuthResponse>
 
-    // DTO
-    data class GoogleLoginRequest(
-        val idToken: String
-    )
 }

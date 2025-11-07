@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "258747975411-r4hpuurhuvnn4amtv3hju2tv036ba0hm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.troca.latroca",
+            "certificate_hash": "fc90cc1e4b0b3a3cf5daae041566bd413f911e92"
+          }
+        },
+        {
           "client_id": "258747975411-65uhuukj0fli077uej4do6lv6j6cjg36.apps.googleusercontent.com",
           "client_type": 3
         }

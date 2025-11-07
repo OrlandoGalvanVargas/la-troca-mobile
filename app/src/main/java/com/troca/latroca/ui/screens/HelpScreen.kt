@@ -156,7 +156,7 @@ fun HelpScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     InfoBox(
-                        "ℹ️ Todos estos datos se eliminan automáticamente una vez vencido el plazo."
+                        "Todos estos datos se eliminan automáticamente una vez vencido el plazo."
                     )
                 }
             }
@@ -202,7 +202,7 @@ fun HelpScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     InfoBox(
-                        "✅ Ventaja: Tu cuenta permanecerá activa y podrás seguir usando La Troca " +
+                        "Ventaja: Tu cuenta permanecerá activa y podrás seguir usando La Troca " +
                                 "con normalidad después de eliminar los datos específicos."
                     )
                 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
@@ -23,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +36,7 @@ import coil.compose.AsyncImage
 import com.troca.latroca.R
 import com.troca.latroca.data.models.UserProfileResponse
 import com.troca.latroca.ui.viewmodels.AuthViewModel
+import com.troca.latroca.ui.viewmodels.ChatViewModel
 import com.troca.latroca.ui.viewmodels.PostViewModel
 import kotlinx.coroutines.launch
 
@@ -42,7 +46,8 @@ fun HomeScreen(
     navController: NavController,
     onLogout: () -> Unit,
     authViewModel: AuthViewModel,
-    postViewModel: PostViewModel
+    postViewModel: PostViewModel,
+    chatViewModel: ChatViewModel // 👈 Agregar chatViewModel
 ) {
     val publicaciones by postViewModel.posts.collectAsState()
     val isLoading by postViewModel.isLoading.collectAsState()
@@ -51,18 +56,36 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val userProfile by authViewModel.userProfile.collectAsState()
 
-    // 🔥 Optimización: Evitar recargas innecesarias
+    // 🔥 NUEVO: Para el badge de mensajes no leídos
+    val userChats by chatViewModel.userChats.collectAsState()
+    val currentUserId = authViewModel.getUserId()
+
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+
     LaunchedEffect(token) {
-        if (!token.isNullOrBlank() && publicaciones.isEmpty()) {
+        if (!token.isNullOrBlank()) {
             postViewModel.loadPosts(token!!)
             authViewModel.loadUserProfile()
         }
     }
 
-    val currentUserId = authViewModel.getUserId()
+    // 🔥 NUEVO: Escuchar chats para mostrar badge
+    LaunchedEffect(currentUserId) {
+        if (currentUserId.isNotEmpty()) {
+            chatViewModel.listenToUserChats(currentUserId)
+        }
+    }
+
+    LaunchedEffect(drawerState.currentValue) {
+        if (drawerState.currentValue == DrawerValue.Open) {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+        }
+    }
+
     var searchQuery by remember { mutableStateOf("") }
 
-// 🔥 Optimización: Computación memoizada CORREGIDA
     val filteredPublicaciones by remember(publicaciones, searchQuery) {
         derivedStateOf {
             if (searchQuery.isEmpty()) {
@@ -77,17 +100,33 @@ fun HomeScreen(
         }
     }
 
+    // 🔥 Calcular mensajes no leídos
+    val totalUnreadCount by remember(userChats, currentUserId) {
+        derivedStateOf {
+            userChats.sumOf { chat ->
+                chat.unreadCount[currentUserId] ?: 0
+            }
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(drawerContainerColor = Color.White) {
                 DrawerContent(
                     onHomeClick = { scope.launch { drawerState.close() } },
+                    onMessagesClick = {
+                        scope.launch {
+                            drawerState.close()
+                            navController.navigate("chat_list")
+                        }
+                    },
                     onConfigClick = {
                         scope.launch { drawerState.close() }
                         navController.navigate("settings")
                     },
-                    userProfile = userProfile
+                    userProfile = userProfile,
+                    unreadMessagesCount = totalUnreadCount
                 )
             }
         }
@@ -102,14 +141,36 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             IconButton(
-                                onClick = { scope.launch { drawerState.open() } },
+                                onClick = {
+                                    scope.launch {
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus()
+                                        drawerState.open()
+                                    }
+                                },
                                 modifier = Modifier.size(48.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Menú",
-                                    tint = Color(0xFF2D3748)
-                                )
+                                // 🔥 Agregar badge al icono de menú si hay mensajes no leídos
+                                BadgedBox(
+                                    badge = {
+                                        if (totalUnreadCount > 0) {
+                                            Badge(
+                                                containerColor = Color(0xFFE53935)
+                                            ) {
+                                                Text(
+                                                    text = if (totalUnreadCount > 9) "9+" else totalUnreadCount.toString(),
+                                                    fontSize = 10.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Menu,
+                                        contentDescription = "Menú",
+                                        tint = Color(0xFF2D3748)
+                                    )
+                                }
                             }
 
                             Image(
@@ -118,7 +179,6 @@ fun HomeScreen(
                                 modifier = Modifier.size(60.dp)
                             )
 
-                            // Espacio para balancear el diseño
                             Spacer(modifier = Modifier.size(48.dp))
                         }
                     },
@@ -141,7 +201,6 @@ fun HomeScreen(
                     .padding(paddingValues)
                     .background(Color(0xFFF7FAFC))
             ) {
-                // 🔥 Mejor diseño de búsqueda
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -252,14 +311,12 @@ fun HomeScreen(
                                 )
                             }
 
-                            // 🔥 CLAVE: Agregar keys únicas para optimización
                             items(
                                 items = filteredPublicaciones,
-                                key = { it.id } // Importante para performance
+                                key = { it.id }
                             ) { publicacion ->
                                 val esPropia = publicacion.userId == currentUserId
 
-                                // 🔥 Optimización: Usar remember para evitar recálculos
                                 val publicationData = remember(publicacion.id) {
                                     Publicacion(
                                         id = publicacion.id,
@@ -280,7 +337,6 @@ fun HomeScreen(
                                 )
                             }
 
-                            // 🔥 Espacio final para mejor scroll
                             item(span = { GridItemSpan(2) }) {
                                 Spacer(modifier = Modifier.height(80.dp))
                             }
@@ -291,20 +347,22 @@ fun HomeScreen(
         }
     }
 }
+@OptIn(ExperimentalMaterial3Api::class)
 
-// 🆕 Contenido del Drawer
 @Composable
 fun DrawerContent(
     onHomeClick: () -> Unit,
+    onMessagesClick: () -> Unit, // 👈 NUEVO
     onConfigClick: () -> Unit,
-    userProfile: UserProfileResponse? // 👈 Recibir perfil
+    userProfile: UserProfileResponse?,
+    unreadMessagesCount: Int = 0 // 👈 NUEVO
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // 🎨 Header del drawer con info del usuario
+        // Header del drawer
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -314,7 +372,6 @@ fun DrawerContent(
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Foto de perfil
                 if (!userProfile?.profilePicUrl.isNullOrBlank()) {
                     AsyncImage(
                         model = userProfile?.profilePicUrl,
@@ -360,6 +417,7 @@ fun DrawerContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // 🏠 Home
         NavigationDrawerItem(
             label = { Text("Home") },
             icon = { Icon(Icons.Default.Home, "Home") },
@@ -368,8 +426,39 @@ fun DrawerContent(
             modifier = Modifier.padding(horizontal = 12.dp)
         )
 
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 💬 NUEVO: Mensajes con badge
+        NavigationDrawerItem(
+            label = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Mensajes")
+                    if (unreadMessagesCount > 0) {
+                        Badge(
+                            containerColor = Color(0xFFE53935)
+                        ) {
+                            Text(
+                                text = if (unreadMessagesCount > 9) "9+" else unreadMessagesCount.toString(),
+                                fontSize = 11.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            },
+            icon = { Icon(Icons.Default.Chat, "Mensajes") },
+            selected = false,
+            onClick = onMessagesClick,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+
         Spacer(modifier = Modifier.weight(1f))
 
+        // ⚙️ Configuración
         NavigationDrawerItem(
             label = { Text("Configuración") },
             icon = { Icon(Icons.Default.Settings, "Configuración") },
@@ -379,6 +468,7 @@ fun DrawerContent(
         )
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardPublicationItem(
@@ -389,7 +479,7 @@ fun CardPublicationItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 240.dp, max = 280.dp), // 🔥 Altura flexible
+            .heightIn(min = 240.dp, max = 280.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -400,7 +490,6 @@ fun CardPublicationItem(
                 .fillMaxSize()
                 .padding(12.dp)
         ) {
-            // 🔥 Imagen optimizada con estados de carga
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -420,7 +509,6 @@ fun CardPublicationItem(
                     error = painterResource(id = R.drawable.image_not_found)
                 )
 
-                // Badge de categoría
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
@@ -437,7 +525,6 @@ fun CardPublicationItem(
                     )
                 }
 
-                // Indicador de publicación propia
                 if (esPropia) {
                     Box(
                         modifier = Modifier
@@ -459,7 +546,6 @@ fun CardPublicationItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 🔥 Mejor jerarquía de texto
             Text(
                 text = publicacion.titulo,
                 fontSize = 14.sp,
@@ -483,7 +569,6 @@ fun CardPublicationItem(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 🔥 Información de ubicación
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -492,7 +577,7 @@ fun CardPublicationItem(
                     painter = painterResource(id = R.drawable.ubication_img),
                     contentDescription = "Ubicación",
                     modifier = Modifier.size(12.dp),
-                    colorFilter = null // 🔥 Esto evita que se aplique tint
+                    colorFilter = null
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
@@ -507,7 +592,6 @@ fun CardPublicationItem(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 🔥 Botón mejorado
             Button(
                 onClick = onClick,
                 modifier = Modifier
@@ -527,7 +611,6 @@ fun CardPublicationItem(
             }
         }
     }
-
 }
 
 data class Publicacion(

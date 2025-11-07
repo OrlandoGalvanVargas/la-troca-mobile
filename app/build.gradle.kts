@@ -15,15 +15,24 @@ android {
         applicationId = "com.troca.latroca"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
     }
-
+    // 🔥 Configuración de firma (opcional, solo si tienes keystore)
+    signingConfigs {
+        create("release") {
+            // Si tienes keystore, descomenta y configura:
+            // storeFile = file("path/to/your/keystore.jks")
+            // storePassword = "tu_password"
+            // keyAlias = "tu_alias"
+            // keyPassword = "tu_password"
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -32,6 +41,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+
+
+        }
+        debug {
+            isMinifyEnabled = false
+            isDebuggable = true
         }
     }
     compileOptions {
@@ -70,6 +85,12 @@ dependencies {
 // Check for the latest version
     implementation(libs.androidx.core.ktx)
 
+    // Coroutines para Firebase (si no lo tienes)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // Opcional: Para formatear fechas
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
+
     // Para EncryptedSharedPreferences (guardar token de forma segura)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.navigation:navigation-compose:2.7.5")
@@ -80,6 +101,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
     implementation("androidx.activity:activity-compose:1.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // Jetpack Compose
     implementation(platform("androidx.compose:compose-bom:2023.10.01"))

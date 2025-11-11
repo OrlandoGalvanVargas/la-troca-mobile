@@ -104,6 +104,19 @@ class AuthRepository {
                 AuthResult.Error("Error de conexión: ${e.message}")
             }
         }
+    suspend fun getUserProfileById(userId: String): AuthResult<UserProfileResponse> =
+        withContext(Dispatchers.IO) {
+            try {
+                val response = authApi.getUserProfileById(userId)
+                if (response.isSuccessful && response.body() != null) {
+                    AuthResult.Success(response.body()!!.data)
+                } else {
+                    AuthResult.Error("No se pudo obtener el perfil del usuario.")
+                }
+            } catch (e: Exception) {
+                AuthResult.Error("Error de conexión: ${e.message}")
+            }
+        }
 
     suspend fun logout(): AuthResult<Boolean> = withContext(Dispatchers.IO) {
         try {

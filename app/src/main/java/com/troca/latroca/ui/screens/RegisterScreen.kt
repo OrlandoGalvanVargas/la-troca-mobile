@@ -40,10 +40,11 @@ private fun validateNombreRealTime(nombre: String): String {
         nombre.any { it.isDigit() } -> "No puede contener números"
         nombre.contains(Regex(".*\\d.*")) -> "No puede contener números"
         !nombre.matches(Regex("^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+\$")) -> "Solo letras y espacios"
-        nombre.trim().split("\\s+".toRegex()).size < 3 -> "Ingresa nombre y apellidos"
+        nombre.trim().split("\\s+".toRegex()).size < 2 -> "Ingresa nombre y apellidos"
         else -> ""
     }
 }
+
 
 private fun validateEmailRealTime(email: String): String {
     if (email.isBlank()) return ""
@@ -593,7 +594,7 @@ fun RegisterScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(40.dp)) // Reducido de 80dp
+        Spacer(modifier = Modifier.height(40.dp))
     }
 
     Box(

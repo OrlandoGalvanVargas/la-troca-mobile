@@ -4,6 +4,7 @@ import com.troca.latroca.data.models.AuthResponse
 import com.troca.latroca.data.models.DeactivateAccountRequest
 import com.troca.latroca.data.models.LoginRequest
 import com.troca.latroca.data.models.UserProfileResponse
+import com.troca.latroca.data.models.UserIdProfileResponse
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.Response
@@ -13,6 +14,7 @@ import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.Path
 
 interface AuthApi {
 
@@ -39,15 +41,21 @@ interface AuthApi {
         @Body request: DeactivateAccountRequest
     ): Response<AuthResponse>
 
+    // Perfil del usuario autenticado
     @GET("api/Auth/profile")
     suspend fun getUserProfile(
         @Header("Authorization") token: String
     ): Response<UserProfileResponse>
 
+    // Perfil de otro usuario (por su ID)
+    @GET("api/User/profile/{userId}")
+    suspend fun getUserProfileById(
+        @Path("userId") userId: String
+    ): Response<UserIdProfileResponse>
+
     @POST("api/Auth/logout")
     suspend fun logout(): Response<AuthResponse>
 
-    // En AuthApi.kt
     @POST("api/Auth/login-google")
     suspend fun loginWithGoogle(@Body request: GoogleLoginRequest): Response<AuthResponse>
 

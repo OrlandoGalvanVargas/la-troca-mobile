@@ -29,6 +29,10 @@ class AuthViewModel(private val authRepository: AuthRepository,     private val 
     private val _userProfile = MutableStateFlow<UserProfileResponse?>(null)
     val userProfile: StateFlow<UserProfileResponse?> = _userProfile.asStateFlow()
 
+    // Para el perfil de otro usuario (por ID)
+    private val _selectedUserProfile = MutableStateFlow<UserProfileResponse?>(null)
+    val selectedUserProfile: StateFlow<UserProfileResponse?> = _selectedUserProfile.asStateFlow()
+
     // 🆕 Inicializar: Cargar token guardado
     init {
         loadSavedToken()
@@ -118,7 +122,22 @@ class AuthViewModel(private val authRepository: AuthRepository,     private val 
         }
     }
 
+    fun loadUserProfileById(userId: String) {
+        viewModelScope.launch {
+            when (val result = authRepository.getUserProfileById(userId)) {
+                is AuthResult.Success -> {
+                    _selectedUserProfile.value = result.data
+                }
 
+                is AuthResult.Error -> {
+                    Log.e("AuthViewModel", "Error al obtener perfil de otro usuario: ${result.message}")
+                    _selectedUserProfile.value = null
+                }
+
+                else -> {}
+            }
+        }
+    }
 
     fun deactivateAccount(reason: String) {
         viewModelScope.launch {

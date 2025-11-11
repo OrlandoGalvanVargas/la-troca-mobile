@@ -183,6 +183,16 @@ class MainActivity : ComponentActivity() {
                                 authViewModel = authViewModel
                             )
                         }
+                        composable(
+                            route = "userProfile/{userId}",
+                            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+                        ) { backStackEntry ->
+                            val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                            UserProfileScreen(
+                                navController = navController,
+                                userId = userId
+                            )
+                        }
                     }
                 }
             }

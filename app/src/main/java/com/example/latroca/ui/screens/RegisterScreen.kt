@@ -1,7 +1,8 @@
-package com.example.latroca.ui.screens
+package com.troca.latroca.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -23,12 +25,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.latroca.R
-import com.example.latroca.ui.viewmodels.RegistrationViewModel
+import com.example.latroca.ui.utils.clickableOnce
+import com.troca.latroca.R
+import com.troca.latroca.ui.components.LoadingModal
+import com.troca.latroca.ui.viewmodels.RegistrationViewModel
 import kotlinx.coroutines.launch
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.ui.platform.LocalContext
 
 private fun validateNombreRealTime(nombre: String): String {
     if (nombre.isBlank()) return ""
@@ -39,10 +40,11 @@ private fun validateNombreRealTime(nombre: String): String {
         nombre.any { it.isDigit() } -> "No puede contener números"
         nombre.contains(Regex(".*\\d.*")) -> "No puede contener números"
         !nombre.matches(Regex("^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+\$")) -> "Solo letras y espacios"
-        nombre.trim().split("\\s+".toRegex()).size < 3 -> "Ingresa nombre y apellidos"
+        nombre.trim().split("\\s+".toRegex()).size < 2 -> "Ingresa nombre y apellidos"
         else -> ""
     }
 }
+
 
 private fun validateEmailRealTime(email: String): String {
     if (email.isBlank()) return ""
@@ -99,6 +101,7 @@ fun RegisterScreen(
     registrationViewModel: RegistrationViewModel
 ) {
     val context = LocalContext.current
+
     var nombre by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -116,6 +119,9 @@ fun RegisterScreen(
     var emailTouched by remember { mutableStateOf(false) }
     var passwordTouched by remember { mutableStateOf(false) }
     var confirmPasswordTouched by remember { mutableStateOf(false) }
+
+    // Estado de carga para simular procesamiento
+    var isLoading by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -137,6 +143,12 @@ fun RegisterScreen(
         }
     }
 
+    // 🚀 Modal de carga
+    LoadingModal(
+        isVisible = isLoading,
+        message = "Creando tu cuenta..."
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -144,22 +156,16 @@ fun RegisterScreen(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(80.dp))
+        // 📍 Reducido de 80dp a 32dp
+        Spacer(modifier = Modifier.height(32.dp))
 
         Image(
-            painter = painterResource(id = R.drawable.cloud_icon),
+            painter = painterResource(id = R.drawable.la_troca_logo),
             contentDescription = "Logo La Troca",
-            modifier = Modifier.size(90.dp)
+            modifier = Modifier.size(120.dp)
         )
 
-        Text(
-            text = "La Troca",
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp,
-            color = Color(0xFF90A4AE)
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp)) // Reducido de 32dp
 
         Text(
             text = "Crear cuenta",
@@ -174,11 +180,12 @@ fun RegisterScreen(
             color = Color(0xFF718096)
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp)) // Reducido de 32dp
 
         Column(
             modifier = Modifier.fillMaxWidth()
         ) {
+            // NOMBRE COMPLETO
             Text(
                 text = "Nombre completo",
                 color = Color(0xFFE53E3E),
@@ -202,12 +209,15 @@ fun RegisterScreen(
                     .padding(bottom = 4.dp),
                 shape = RoundedCornerShape(8.dp),
                 singleLine = true,
+                enabled = !isLoading,
                 isError = nombreError.isNotBlank(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = if (nombreError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
                     unfocusedBorderColor = if (nombreError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                    disabledBorderColor = Color(0xFFE2E8F0),
                     focusedTextColor = Color(0xFF2D3748),
                     unfocusedTextColor = Color(0xFF2D3748),
+                    disabledTextColor = Color(0xFF718096),
                     cursorColor = Color(0xFFE53E3E),
                     errorBorderColor = Color.Red,
                     errorTextColor = Color.Red
@@ -223,12 +233,13 @@ fun RegisterScreen(
                     fontSize = 12.sp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp, start = 4.dp)
+                        .padding(bottom = 12.dp, start = 4.dp)
                 )
             } else {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
+            // CORREO
             Text(
                 text = "Correo",
                 color = Color(0xFFE53E3E),
@@ -253,12 +264,15 @@ fun RegisterScreen(
                 shape = RoundedCornerShape(8.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 singleLine = true,
+                enabled = !isLoading,
                 isError = emailError.isNotBlank(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = if (emailError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
                     unfocusedBorderColor = if (emailError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                    disabledBorderColor = Color(0xFFE2E8F0),
                     focusedTextColor = Color(0xFF2D3748),
                     unfocusedTextColor = Color(0xFF2D3748),
+                    disabledTextColor = Color(0xFF718096),
                     cursorColor = Color(0xFFE53E3E),
                     errorBorderColor = Color.Red,
                     errorTextColor = Color.Red
@@ -274,12 +288,13 @@ fun RegisterScreen(
                     fontSize = 12.sp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp, start = 4.dp)
+                        .padding(bottom = 12.dp, start = 4.dp)
                 )
             } else {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
+            // CONTRASEÑA
             Text(
                 text = "Contraseña",
                 color = Color(0xFFE53E3E),
@@ -306,14 +321,17 @@ fun RegisterScreen(
                     .padding(bottom = 4.dp),
                 shape = RoundedCornerShape(8.dp),
                 singleLine = true,
+                enabled = !isLoading,
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 isError = passwordError.isNotBlank(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = if (passwordError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
                     unfocusedBorderColor = if (passwordError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                    disabledBorderColor = Color(0xFFE2E8F0),
                     focusedTextColor = Color(0xFF2D3748),
                     unfocusedTextColor = Color(0xFF2D3748),
+                    disabledTextColor = Color(0xFF718096),
                     cursorColor = Color(0xFFE53E3E),
                     errorBorderColor = Color.Red,
                     errorTextColor = Color.Red
@@ -327,11 +345,14 @@ fun RegisterScreen(
                     else
                         Icons.Filled.VisibilityOff
 
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    IconButton(
+                        onClick = { passwordVisible = !passwordVisible },
+                        enabled = !isLoading
+                    ) {
                         Icon(
                             imageVector = image,
                             contentDescription = null,
-                            tint = Color(0xFF718096)
+                            tint = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF718096)
                         )
                     }
                 }
@@ -343,12 +364,13 @@ fun RegisterScreen(
                     fontSize = 12.sp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp, start = 4.dp)
+                        .padding(bottom = 12.dp, start = 4.dp)
                 )
             } else {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
+            // CONFIRMAR CONTRASEÑA
             Text(
                 text = "Confirmar Contraseña",
                 color = Color(0xFFE53E3E),
@@ -372,14 +394,17 @@ fun RegisterScreen(
                     .padding(bottom = 4.dp),
                 shape = RoundedCornerShape(8.dp),
                 singleLine = true,
+                enabled = !isLoading,
                 visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 isError = confirmPasswordError.isNotBlank(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = if (confirmPasswordError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
                     unfocusedBorderColor = if (confirmPasswordError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                    disabledBorderColor = Color(0xFFE2E8F0),
                     focusedTextColor = Color(0xFF2D3748),
                     unfocusedTextColor = Color(0xFF2D3748),
+                    disabledTextColor = Color(0xFF718096),
                     cursorColor = Color(0xFFE53E3E),
                     errorBorderColor = Color.Red,
                     errorTextColor = Color.Red
@@ -393,11 +418,14 @@ fun RegisterScreen(
                     else
                         Icons.Filled.VisibilityOff
 
-                    IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
+                    IconButton(
+                        onClick = { confirmPasswordVisible = !confirmPasswordVisible },
+                        enabled = !isLoading
+                    ) {
                         Icon(
                             imageVector = image,
                             contentDescription = null,
-                            tint = Color(0xFF718096)
+                            tint = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF718096)
                         )
                     }
                 }
@@ -409,61 +437,72 @@ fun RegisterScreen(
                     fontSize = 12.sp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp, start = 4.dp)
+                        .padding(bottom = 12.dp, start = 4.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp)) // Reducido de 16dp
 
+        // TÉRMINOS Y CONDICIONES
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 24.dp),
+                .padding(bottom = 16.dp), // Reducido de 24dp
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(
                 checked = acceptTerms,
-                onCheckedChange = { acceptTerms = it },
+                onCheckedChange = { if (!isLoading) acceptTerms = it },
+                enabled = !isLoading,
                 colors = CheckboxDefaults.colors(
-                    checkedColor = Color(0xFFEF4444)
+                    checkedColor = Color(0xFFEF4444),
+                    disabledCheckedColor = Color(0xFFCBD5E0)
                 )
             )
             Text(
                 text = "Acepto los ",
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = Color(0xFF4A5568)
+                    color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF4A5568)
                 )
             )
             Text(
                 text = "Términos de Servicio",
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = Color(0xFFEF4444),
+                    color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFFEF4444),
                     fontWeight = FontWeight.Bold
                 ),
-                modifier = Modifier.clickable {
-                    // Agregar navegacion a los términos de servicio
+                modifier = Modifier.clickableOnce(enabled = !isLoading) {
+                    val intent = Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://orlandogalvanvargas.github.io/la-troca-mobile-terminos-de-servicio/")
+                    )
+                    context.startActivity(intent)
                 }
             )
             Text(
                 text = " y ",
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = Color(0xFF4A5568)
+                    color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF4A5568)
                 )
             )
             Text(
                 text = "Política de Privacidad",
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = Color(0xFFEF4444),
+                    color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFFEF4444),
                     fontWeight = FontWeight.Bold
                 ),
-                modifier = Modifier.clickable {
-                    val intent = Intent(Intent.ACTION_VIEW,
-                        Uri.parse("https://la-troca-app.web.app/privacy-policy.html"))
+                modifier = Modifier.clickableOnce(enabled = !isLoading) {
+                    val intent = Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://la-troca-app.web.app/privacy-policy.html")
+                    )
                     context.startActivity(intent)
                 }
             )
         }
+
+        // BOTÓN REGISTRARSE
         Button(
             onClick = {
                 nombreTouched = true
@@ -477,10 +516,19 @@ fun RegisterScreen(
                 confirmPasswordError = validateConfirmPasswordRealTime(confirmPassword, password)
 
                 if (isFormValid) {
-                    registrationViewModel.updateStep1Data(nombre, email, password)
+                    isLoading = true
 
-                    navController.navigate("completeProfile") {
-                        popUpTo("register") { inclusive = false }
+                    // Simular un pequeño delay para mostrar el loading
+                    coroutineScope.launch {
+                        kotlinx.coroutines.delay(800) // Simular procesamiento
+
+                        registrationViewModel.updateStep1Data(nombre, email, password)
+
+                        isLoading = false
+
+                        navController.navigate("completeProfile") {
+                            popUpTo("register") { inclusive = false }
+                        }
                     }
                 } else {
                     coroutineScope.launch {
@@ -493,23 +541,28 @@ fun RegisterScreen(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
+                .height(52.dp)
+                .clickableOnce(enabled = isFormValid && !isLoading) {
+                    // El onClick del Button maneja la lógica
+                },
             shape = RoundedCornerShape(10.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFFF6B6B)
+                containerColor = Color(0xFFFF6B6B),
+                disabledContainerColor = Color(0xFFE2E8F0)
             ),
-            enabled = isFormValid
+            enabled = isFormValid && !isLoading
         ) {
             Text(
                 text = "Registrarse",
-                color = Color.White,
+                color = if (isFormValid && !isLoading) Color.White else Color(0xFF718096),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        Spacer(modifier = Modifier.height(30.dp))
+        Spacer(modifier = Modifier.height(16.dp)) // Reducido de 15dp
 
+        // YA TIENES CUENTA
         Row(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
@@ -517,25 +570,31 @@ fun RegisterScreen(
             Text(
                 text = "¿Ya tienes cuenta?",
                 style = MaterialTheme.typography.bodyMedium.copy(
-                    color = Color(0xFF718096)
+                    color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF718096)
                 )
             )
             Spacer(modifier = Modifier.width(4.dp))
             TextButton(
-                onClick = { navController.navigate("login") },
-                contentPadding = PaddingValues(0.dp)
+                onClick = {
+                    navController.navigate("login")
+                },
+                enabled = !isLoading,
+                contentPadding = PaddingValues(0.dp),
+                modifier = Modifier.clickableOnce(enabled = !isLoading) {
+                    navController.navigate("login")
+                }
             ) {
                 Text(
                     text = "Inicia sesión",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = Color(0xFFEF4444),
+                        color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFFEF4444),
                         fontWeight = FontWeight.Bold
                     )
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(80.dp))
+        Spacer(modifier = Modifier.height(40.dp))
     }
 
     Box(

@@ -41,7 +41,6 @@ fun DeleteAccountScreen(
     var selectedReason by remember { mutableStateOf("") }
     var deleteImmediately by remember { mutableStateOf(false) }
 
-    // 🔔 Estados del modal
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
     var isSuccess by remember { mutableStateOf(false) }
@@ -92,7 +91,6 @@ fun DeleteAccountScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp)
         ) {
-            // ⚠️ Advertencia principal
             Text(
                 text = buildAnnotatedString {
                     append("Si confirmas esta acción, tu cuenta será ")
@@ -121,7 +119,6 @@ fun DeleteAccountScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // 📋 Motivo (opcional)
             Text(
                 text = "Motivo (opcional):",
                 fontSize = 16.sp,
@@ -131,7 +128,6 @@ fun DeleteAccountScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Botones de motivo
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -164,7 +160,6 @@ fun DeleteAccountScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // ⚡ Checkbox de eliminación inmediata
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -200,11 +195,10 @@ fun DeleteAccountScreen(
             Spacer(modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 🚫 Botón Eliminar
             Button(
                 onClick = {
                     if (deleteImmediately) {
-                        showDeleteDialog = true // 👈 Mostrar modal de confirmación
+                        showDeleteDialog = true
                     } else {
                         Toast.makeText(
                             context,
@@ -234,20 +228,17 @@ fun DeleteAccountScreen(
         }
     }
 
-    // 🔔 MODAL DE ELIMINACIÓN (3 ESTADOS)
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = {
-                // 👈 NO hacer nada - modal no se puede cerrar haciendo clic fuera
             },
             confirmButton = {
                 when {
-                    // ✅ Estado 3: ÉXITO
                     isSuccess -> {
                         Button(
                             onClick = {
                                 showDeleteDialog = false
-                                authViewModel.logout() // 👈 Limpiar token
+                                authViewModel.logout()
                                 navController.navigate("login") {
                                     popUpTo(0) { inclusive = true }
                                 }
@@ -260,11 +251,8 @@ fun DeleteAccountScreen(
                             Text("Ok")
                         }
                     }
-                    // ⏳ Estado 2: PROCESANDO
                     isProcessing -> {
-                        // No mostrar botones mientras procesa
                     }
-                    // ⚠️ Estado 1: CONFIRMACIÓN
                     else -> {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -288,13 +276,8 @@ fun DeleteAccountScreen(
                                 onClick = {
                                     isProcessing = true
                                     coroutineScope.launch {
-                                        // 🔄 Llamar a la API
                                         authViewModel.deactivateAccount(selectedReason)
-
-                                        // Esperar 3 segundos
                                         delay(3000)
-
-                                        // Verificar el estado
                                         val loginState = authViewModel.loginState.value
 
                                         when (loginState) {

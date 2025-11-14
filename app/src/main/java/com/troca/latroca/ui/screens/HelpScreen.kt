@@ -57,7 +57,6 @@ fun HelpScreen(
                 .background(Color(0xFFF7FAFC))
                 .verticalScroll(rememberScrollState())
         ) {
-            // 📌 Header informativo
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -92,7 +91,6 @@ fun HelpScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 🔹 Sección 1: Eliminación de Cuenta
             HelpSection(
                 icon = Icons.Default.AccountCircle,
                 title = "Eliminación de Cuenta y Datos",
@@ -163,7 +161,6 @@ fun HelpScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 🔹 Sección 2: Eliminación Parcial de Datos
             HelpSection(
                 icon = Icons.Default.Delete,
                 title = "Eliminación Parcial de Datos",
@@ -210,12 +207,10 @@ fun HelpScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 📞 Sección de contacto
             ContactSection()
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Footer
             Text(
                 text = "© 2025 La Troca — Todos los derechos reservados",
                 fontSize = 12.sp,
@@ -248,7 +243,6 @@ fun HelpSection(
         shape = RoundedCornerShape(12.dp)
     ) {
         Column {
-            // Header expandible
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -280,7 +274,6 @@ fun HelpSection(
                 )
             }
 
-            // Contenido expandible
             if (isExpanded) {
                 Divider(color = Color(0xFFE2E8F0))
                 content()
@@ -396,7 +389,7 @@ fun ContactSection() {
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth() // 👈 asegura que ocupe todo el ancho
+                .fillMaxWidth()
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -412,7 +405,7 @@ fun ContactSection() {
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
-                textAlign = TextAlign.Center, // 👈 centrado visual del texto
+                textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))

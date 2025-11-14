@@ -15,7 +15,7 @@ object FileUtils {
             inputStream.close()
             outputStream.close()
             tempFile
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }

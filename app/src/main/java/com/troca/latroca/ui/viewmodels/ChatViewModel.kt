@@ -20,36 +20,28 @@ class ChatViewModel(
     private val chatRepository: ChatRepository
 ) : ViewModel() {
 
-    // 📋 Lista de chats del usuario
     private val _userChats = MutableStateFlow<List<Chat>>(emptyList())
     val userChats: StateFlow<List<Chat>> = _userChats.asStateFlow()
 
-    // 💬 Mensajes del chat actual
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
-    // ✍️ Estado de "escribiendo..."
     private val _isOtherUserTyping = MutableStateFlow(false)
     val isOtherUserTyping: StateFlow<Boolean> = _isOtherUserTyping.asStateFlow()
 
-    // ⏳ Estado de carga
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    // ❌ Errores
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    // 📝 Chat actual
     private val _currentChatId = MutableStateFlow<String?>(null)
-    val currentChatId: StateFlow<String?> = _currentChatId.asStateFlow()
 
     private var messagesListenerJob: Job? = null
     private var chatsListenerJob: Job? = null
     private var typingListenerJob: Job? = null
     private var typingDebounceJob: Job? = null
 
-    // 🔍 Obtener o crear un chat
     fun getOrCreateChat(
         currentUserId: String,
         currentUserName: String,
@@ -96,9 +88,7 @@ class ChatViewModel(
         }
     }
 
-    // 📖 Escuchar mensajes en tiempo real
     fun listenToMessages(chatId: String, currentUserId: String) {
-        // Cancelar listener anterior si existe
         messagesListenerJob?.cancel()
 
         messagesListenerJob = viewModelScope.launch {
@@ -110,14 +100,13 @@ class ChatViewModel(
                         if (e !is CancellationException) {
                             Log.e("ChatViewModel", "Error en flow de mensajes", e)
                             _error.value = "Error al cargar mensajes: ${e.message}"
-                            emit(emptyList()) // Emitir lista vacía en caso de error
+                            emit(emptyList())
                         }
                     }
                     .collect { messages ->
                         _messages.value = messages
                         Log.d("ChatViewModel", "Mensajes actualizados: ${messages.size}")
 
-                        // Marcar mensajes como leídos
                         if (messages.isNotEmpty()) {
                             markMessagesAsRead(chatId, currentUserId)
                         }
@@ -132,9 +121,7 @@ class ChatViewModel(
         }
     }
 
-    // 📋 Escuchar lista de chats
     fun listenToUserChats(userId: String) {
-        // Cancelar listener anterior si existe
         chatsListenerJob?.cancel()
 
         chatsListenerJob = viewModelScope.launch {
@@ -163,19 +150,18 @@ class ChatViewModel(
         }
     }
 
-    // 💬 Enviar mensaje
     fun sendMessage(
         chatId: String,
         senderId: String,
         senderName: String,
         text: String,
-        receiverId: String
+        receiverId: String,
+        token: String
     ) {
         if (text.isBlank()) return
 
         viewModelScope.launch {
             try {
-                // Detener indicador de "escribiendo..."
                 setTypingStatus(chatId, senderId, false)
 
                 val result = chatRepository.sendMessage(
@@ -183,7 +169,8 @@ class ChatViewModel(
                     senderId = senderId,
                     senderName = senderName,
                     text = text.trim(),
-                    receiverId = receiverId
+                    receiverId = receiverId,
+                    token = token
                 )
 
                 result.onFailure { exception ->
@@ -200,7 +187,6 @@ class ChatViewModel(
         }
     }
 
-    // ✅ Marcar mensajes como leídos
     private fun markMessagesAsRead(chatId: String, userId: String) {
         viewModelScope.launch {
             try {
@@ -213,16 +199,13 @@ class ChatViewModel(
         }
     }
 
-    // ✍️ Actualizar estado de "escribiendo..."
     fun setTypingStatus(chatId: String, userId: String, isTyping: Boolean) {
-        // Cancelar el debounce anterior
         typingDebounceJob?.cancel()
 
         viewModelScope.launch {
             try {
                 chatRepository.setTypingStatus(chatId, userId, isTyping)
 
-                // Si está escribiendo, programar auto-desactivación después de 3 segundos
                 if (isTyping) {
                     typingDebounceJob = launch {
                         delay(3000)
@@ -232,15 +215,12 @@ class ChatViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // No mostrar error de typing status, es menos crítico
                 Log.e("ChatViewModel", "Error setting typing status", e)
             }
         }
     }
 
-    // 👀 Escuchar estado de "escribiendo..." del otro usuario
     fun listenToTypingStatus(chatId: String, otherUserId: String) {
-        // Cancelar listener anterior si existe
         typingListenerJob?.cancel()
 
         typingListenerJob = viewModelScope.launch {
@@ -267,22 +247,21 @@ class ChatViewModel(
         }
     }
 
-    // 🗑️ Eliminar chat
-    fun deleteChat(chatId: String, onSuccess: () -> Unit) {
+    fun hideChatForUser(chatId: String, userId: String, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
 
             try {
-                val result = chatRepository.deleteChat(chatId)
+                val result = chatRepository.hideChat(chatId, userId)
 
                 _isLoading.value = false
 
                 result.onSuccess {
-                    Log.d("ChatViewModel", "Chat eliminado exitosamente")
+                    Log.d("ChatViewModel", "Chat ocultado exitosamente")
                     onSuccess()
                 }.onFailure { exception ->
-                    _error.value = "Error al eliminar chat: ${exception.message}"
-                    Log.e("ChatViewModel", "Error deleting chat", exception)
+                    _error.value = "Error al ocultar chat: ${exception.message}"
+                    Log.e("ChatViewModel", "Error hiding chat", exception)
                 }
             } catch (e: CancellationException) {
                 _isLoading.value = false
@@ -290,12 +269,29 @@ class ChatViewModel(
             } catch (e: Exception) {
                 _isLoading.value = false
                 _error.value = "Error inesperado: ${e.message}"
-                Log.e("ChatViewModel", "Unexpected error deleting chat", e)
+                Log.e("ChatViewModel", "Unexpected error hiding chat", e)
             }
         }
     }
 
-    // 🧹 Limpiar listeners
+    fun deleteChatsForPost(postId: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                Log.d("ChatViewModel", "Eliminando chats del post: $postId")
+                val result = chatRepository.deleteChatsForPost(postId)
+
+                result.onSuccess {
+                    Log.d("ChatViewModel", "Chats del post eliminados exitosamente")
+                    onSuccess()
+                }.onFailure { exception ->
+                    Log.e("ChatViewModel", "Error deleting chats for post", exception)
+                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Unexpected error deleting chats for post", e)
+            }
+        }
+    }
+
     fun stopListeners() {
         Log.d("ChatViewModel", "Deteniendo todos los listeners")
         messagesListenerJob?.cancel()
@@ -303,20 +299,13 @@ class ChatViewModel(
         typingListenerJob?.cancel()
         typingDebounceJob?.cancel()
 
-        messagesListenerJob = null
-        chatsListenerJob = null
-        typingListenerJob = null
-        typingDebounceJob = null
 
-        _isOtherUserTyping.value = false
     }
 
-    // 🧹 Limpiar errores
     fun clearError() {
         _error.value = null
     }
 
-    // 🧹 Limpiar mensajes al salir del chat
     fun clearMessages() {
         Log.d("ChatViewModel", "Limpiando mensajes y listeners")
         _messages.value = emptyList()
@@ -325,7 +314,6 @@ class ChatViewModel(
         stopListeners()
     }
 
-    // 📊 Convertir Chat a ChatListItem para UI
     fun getChatListItems(chats: List<Chat>, currentUserId: String): List<ChatListItem> {
         return chats.map { chat ->
             val otherUserId = chat.participants.firstOrNull { it != currentUserId } ?: ""

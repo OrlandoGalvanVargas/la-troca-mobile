@@ -30,7 +30,6 @@ fun ImagePickerDialog(
             Column(
                 modifier = Modifier.padding(24.dp)
             ) {
-                // Título
                 Text(
                     text = "Seleccionar foto de perfil",
                     style = MaterialTheme.typography.headlineSmall.copy(
@@ -49,7 +48,6 @@ fun ImagePickerDialog(
                     modifier = Modifier.padding(bottom = 24.dp)
                 )
 
-                // Opción Tomar foto
                 Surface(
                     onClick = onTakePhoto,
                     modifier = Modifier
@@ -80,7 +78,6 @@ fun ImagePickerDialog(
                     }
                 }
 
-                // Opción Seleccionar imagen
                 Surface(
                     onClick = onSelectFromGallery,
                     modifier = Modifier
@@ -111,7 +108,6 @@ fun ImagePickerDialog(
                     }
                 }
 
-                // Boton
                 TextButton(
                     onClick = onDismiss,
                     modifier = Modifier.align(Alignment.End)

@@ -11,13 +11,13 @@ class LaTrocaApplication : Application(), ImageLoaderFactory {
         return ImageLoader.Builder(this)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.25) // 25% de memoria RAM
+                    .maxSizePercent(0.25)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(50 * 1024 * 1024) // 50MB
+                    .maxSizeBytes(50 * 1024 * 1024)
                     .build()
             }
             .respectCacheHeaders(false)

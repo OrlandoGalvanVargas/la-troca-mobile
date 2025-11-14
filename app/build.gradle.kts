@@ -3,8 +3,6 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
- //   id("com.google.dagger.hilt.android")
-  //  kotlin("kapt")
 }
 
 android {
@@ -15,22 +13,16 @@ android {
         applicationId = "com.troca.latroca"
         minSdk = 30
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 12
+        versionName = "2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
     }
-    // 🔥 Configuración de firma (opcional, solo si tienes keystore)
     signingConfigs {
         create("release") {
-            // Si tienes keystore, descomenta y configura:
-            // storeFile = file("path/to/your/keystore.jks")
-            // storePassword = "tu_password"
-            // keyAlias = "tu_alias"
-            // keyPassword = "tu_password"
         }
     }
     buildTypes {
@@ -41,8 +33,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-
-
         }
         debug {
             isMinifyEnabled = false
@@ -76,22 +66,21 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0-beta01")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
-    implementation("androidx.compose.ui:ui-android:1.7.0") //LocalContext
-    implementation("androidx.activity:activity-compose:1.9.0") //setContent
+    implementation("androidx.compose.ui:ui-android:1.7.0")
+    implementation("androidx.activity:activity-compose:1.9.0")
 
     implementation(platform("com.google.firebase:firebase-bom:34.4.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-firestore-ktx:25.0.0")
-// Check for the latest version
+
+    // Notificaciones
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation(libs.androidx.core.ktx)
 
-    // Coroutines para Firebase (si no lo tienes)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
-    // Opcional: Para formatear fechas
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
 
-    // Para EncryptedSharedPreferences (guardar token de forma segura)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.navigation:navigation-compose:2.7.5")
     implementation("io.coil-kt:coil-compose:2.5.0")
@@ -114,11 +103,7 @@ dependencies {
     // Compose Navigation
     implementation("androidx.navigation:navigation-compose:2.7.2")
     implementation("com.google.firebase:firebase-auth-ktx:23.2.1")
-
-    // Hilt
-//    implementation("com.google.dagger:hilt-android:2.48")
-//    kapt("com.google.dagger:hilt-android-compiler:2.48")
-//    implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
+    implementation(libs.firebase.messaging.ktx)
 
     // Testing
     testImplementation("junit:junit:4.13.2")

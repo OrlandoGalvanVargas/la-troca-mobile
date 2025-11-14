@@ -2,6 +2,7 @@ package com.troca.latroca.data.repository
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.troca.latroca.data.api.ApiClient
 import com.troca.latroca.data.models.PostItem
 import com.troca.latroca.utils.FileUtils
@@ -17,11 +18,13 @@ import java.io.File
 class PostRepository {
 
     private val postApi = ApiClient.postApi
+    private val TAG = "PostRepository"
 
     suspend fun getAllPosts(token: String): List<PostItem> = withContext(Dispatchers.IO) {
         try {
             postApi.getAllPosts("Bearer $token").data
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting posts: ${e.message}")
             emptyList()
         }
     }
@@ -41,17 +44,35 @@ class PostRepository {
         onError: (String) -> Unit
     ) = withContext(Dispatchers.IO) {
         try {
-            val file = FileUtils.getFileFromUri(context, imageUri) ?: throw Exception("Archivo inválido")
+            Log.d(TAG, "Starting post creation...")
+
+            val file = FileUtils.getFileFromUri(context, imageUri)
+            if (file == null) {
+                Log.e(TAG, "File is null")
+                onError("No se pudo procesar la imagen seleccionada")
+                return@withContext
+            }
+
+            if (!file.exists()) {
+                Log.e(TAG, "File doesn't exist")
+                onError("El archivo de imagen no existe")
+                return@withContext
+            }
+
+            Log.d(TAG, "File prepared: ${file.name}, size: ${file.length()} bytes")
+
             val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
             val fotoPart = MultipartBody.Part.createFormData("Fotos", file.name, requestFile)
 
-            val tituloPart = titulo.clean().toRequestBodyUtf8()
-            val descripcionPart = descripcion.clean().toRequestBodyUtf8()
-            val categoriaPart = categoria.clean().toRequestBodyUtf8()
-            val necesidadPart = necesidad.clean().toRequestBodyUtf8()
-            val ubicacionPart = ubicacion.clean().toRequestBodyUtf8()
+            val tituloPart = titulo.trim().toRequestBodyUtf8()
+            val descripcionPart = descripcion.trim().toRequestBodyUtf8()
+            val categoriaPart = categoria.trim().toRequestBodyUtf8()
+            val necesidadPart = necesidad.trim().toRequestBodyUtf8()
+            val ubicacionPart = ubicacion.trim().toRequestBodyUtf8()
             val latitudePart = latitude.toString().toRequestBodyUtf8()
             val longitudePart = longitude.toString().toRequestBodyUtf8()
+
+            Log.d(TAG, "Making API request...")
 
             val response = postApi.createPostValidated(
                 "Bearer $token",
@@ -65,10 +86,44 @@ class PostRepository {
                 listOf(fotoPart)
             )
 
-            if (response.isSuccessful) onSuccess()
-            else onError("Error ${response.code()}: ${response.message()}")
+            Log.d(TAG, "Response code: ${response.code()}")
+
+            if (response.isSuccessful) {
+                Log.d(TAG, "Post created successfully")
+                withContext(Dispatchers.Main) {
+                    onSuccess()
+                }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Log.e(TAG, "Error response: $errorBody")
+
+                val errorMessage = when (response.code()) {
+                    400 -> {
+                        when {
+                            errorBody?.contains("Título", ignoreCase = true) == true ->
+                                "El título contiene lenguaje inapropiado"
+                            errorBody?.contains("Descripción", ignoreCase = true) == true ->
+                                "La descripción contiene lenguaje inapropiado"
+                            errorBody?.contains("Categoría", ignoreCase = true) == true ->
+                                "La categoría contiene lenguaje inapropiado"
+                            errorBody?.contains("Necesidad", ignoreCase = true) == true ->
+                                "La necesidad contiene lenguaje inapropiado"
+                            errorBody?.contains("Imagen inapropiada", ignoreCase = true) == true ->
+                                "La imagen contiene contenido inapropiado"
+                            else -> "Datos incorrectos. Verifica la información"
+                        }
+                    }
+                    401 -> "Sesión expirada. Inicia sesión nuevamente"
+                    500 -> "Error del servidor. Intenta más tarde"
+                    else -> errorBody ?: "Error al crear la publicación"
+                }
+                withContext(Dispatchers.Main) {
+                    onError(errorMessage)
+                }
+            }
         } catch (e: Exception) {
-            onError(e.localizedMessage ?: "Error desconocido")
+            Log.e(TAG, "Exception in createPostWithImage", e)
+            onError("Error: ${e.message ?: "Problema de conexión"}")
         }
     }
 
@@ -85,7 +140,7 @@ class PostRepository {
         longitude: Double,
         existingImageUrl: String?,
         newImageUri: Uri?
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): Result<String> = withContext(Dispatchers.IO) { // 🔥 Cambiamos el retorno a Result<String>
         try {
             val tituloPart = titulo.toRequestBody("text/plain".toMediaTypeOrNull())
             val descripcionPart = descripcion.toRequestBody("text/plain".toMediaTypeOrNull())
@@ -122,24 +177,61 @@ class PostRepository {
                 ubicacionManualPart,
                 latitudePart,
                 longitudePart,
-                if (fotosParts.isNotEmpty()) fotosParts else null
+                fotosParts.ifEmpty { null }
             )
 
-            response.isSuccessful
-        } catch (_: Exception) {
-            false
+            if (response.isSuccessful) {
+                Result.success("Publicación actualizada correctamente")
+            } else {
+                val errorBody = response.errorBody()?.string()
+                val errorMessage = when {
+                    response.code() == 400 -> {
+                        when {
+                            errorBody?.contains("Texto inapropiado detectado", ignoreCase = true) == true -> {
+                                when {
+                                    errorBody.contains("Título", ignoreCase = true) ->
+                                        "Lenguaje inapropiado en el título. Por favor, corrígelo"
+                                    errorBody.contains("Descripción", ignoreCase = true) ->
+                                        "La descripción contiene lenguaje inapropiado. Por favor, corrígelo"
+                                    errorBody.contains("Categoría", ignoreCase = true) ->
+                                        "La categoría contiene lenguaje inapropiado. Por favor, selecciona una categoría válida"
+                                    errorBody.contains("Necesidad", ignoreCase = true) ->
+                                        "la necesidad contiene lenguaje inapropiado. Por favor, corrígelo."
+                                    else -> "El contenido contiene lenguaje inapropiado. Por favor, revisa toda la información."
+                                }
+                            }
+                            errorBody?.contains("Imagen inapropiada detectada", ignoreCase = true) == true ->
+                                "La imagen contiene contenido inapropiado. Por favor, selecciona otra imagen."
+                            else -> errorBody ?: "Datos incorrectos. Verifica la información ingresada."
+                        }
+                    }
+                    response.code() == 401 -> {
+                        "Sesión expirada. Por favor, inicia sesión nuevamente."
+                    }
+                    response.code() == 500 -> {
+                        "Error interno del servidor. Por favor, intenta más tarde."
+                    }
+                    else -> {
+                        errorBody ?: "Error desconocido al actualizar la publicación"
+                    }
+                }
+                Result.failure(Exception(errorMessage))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating post", e)
+            Result.failure(Exception("Error de conexión: ${e.message ?: "Intenta nuevamente"}"))
         }
     }
 
     suspend fun deletePost(token: String, postId: String): Boolean = withContext(Dispatchers.IO) {
         try {
             postApi.deletePost("Bearer $token", postId).isSuccessful
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting post", e)
             false
         }
     }
 
-    // Analizar imagen
     suspend fun analyzeImage(
         context: Context,
         token: String,
@@ -164,35 +256,7 @@ class PostRepository {
                     false to "Error del servidor (${response.code()})"
                 }
             } catch (e: Exception) {
-                false to (e.localizedMessage ?: "Error desconocido")
-            }
-        }
-    }
-
-    // Analizar texto
-    suspend fun analyzeText(token: String, text: String): Pair<Boolean, String> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val escapedText = text
-                    .replace("\\", "\\\\")
-                    .replace("\r", "\\r")
-                    .replace("\n", "\\n")
-                    .replace("\"", "\\\"")
-
-                val jsonBody = """{"descripcion": "$escapedText"}"""
-                val requestBody = jsonBody.toRequestBody("application/json".toMediaTypeOrNull())
-
-                val response = postApi.analyzeText("Bearer $token", requestBody)
-                if (response.isSuccessful) {
-                    val body = response.body()?.string() ?: return@withContext false to "Respuesta vacía"
-                    val json = JSONObject(body)
-                    val isSafe = json.optBoolean("isSafe", false)
-                    val message = json.optString("message", "Sin mensaje")
-                    isSafe to message
-                } else {
-                    false to "Error del servidor (${response.code()})"
-                }
-            } catch (e: Exception) {
+                Log.e(TAG, "Error analyzing image", e)
                 false to (e.localizedMessage ?: "Error desconocido")
             }
         }
@@ -208,13 +272,11 @@ class PostRepository {
             val file = File(context.cacheDir, "cache_${System.currentTimeMillis()}.jpg")
             file.outputStream().use { it.write(bytes) }
             file
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Error downloading to cache", e)
             null
         }
     }
-
-    // Helpers
-    private fun String.clean(): String = replace("\r", " ").replace("\n", " ").trim()
 
     private fun String.toRequestBodyUtf8() =
         toRequestBody("text/plain; charset=utf-8".toMediaTypeOrNull())

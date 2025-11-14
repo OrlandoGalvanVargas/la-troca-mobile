@@ -14,10 +14,4 @@ data class RegistrationData(
     val imageFile: File? = null,
     val imageUri: Uri? = null,
 
-) {
-    val isStep1Valid: Boolean
-        get() = nombre.isNotBlank() && email.isNotBlank() && password.isNotBlank()
-
-    val isStep2Valid: Boolean
-        get() = bio.isNotBlank() && ubicacion.isNotBlank()
-}
+)

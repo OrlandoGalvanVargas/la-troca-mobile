@@ -18,39 +18,117 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.latroca.ui.utils.clickableOnce
+import com.troca.latroca.ui.utils.clickableOnce
 import com.troca.latroca.R
 import com.troca.latroca.ui.components.LoadingModal
 import com.troca.latroca.ui.viewmodels.RegistrationViewModel
+import com.troca.latroca.utils.validatePasswordInput
 import kotlinx.coroutines.launch
 
+// 🔥 MODIFICADO: Nueva función para formatear el nombre con las restricciones
+private fun formatNombreText(currentText: String, newText: String): String {
+    if (newText.isEmpty()) return ""
+
+    // Si el texto nuevo es más corto que el actual, es una eliminación, permitir
+    if (newText.length < currentText.length) {
+        return newText
+    }
+
+    // 🔥 NUEVO: Limitar a máximo 30 caracteres
+    if (newText.length > 30) {
+        return currentText
+    }
+
+    // Verificar si el texto está vacío o solo tiene espacios
+    val hasContent = currentText.any { it != ' ' }
+
+    // 🔥 NUEVO: No permitir espacios al inicio si no hay contenido
+    if (!hasContent) {
+        if (newText.first().isWhitespace()) {
+            return ""
+        }
+    }
+
+    // Construir el texto formateado caracter por caracter
+    val result = StringBuilder()
+    var spaceCount = 0
+
+    for (char in newText) {
+        when {
+            // 🔥 NUEVO: No permitir espacios al inicio
+            result.isEmpty() && char.isWhitespace() -> {
+                continue
+            }
+            // 🔥 NUEVO: No permitir más de 2 espacios consecutivos
+            char == ' ' -> {
+                spaceCount++
+                if (spaceCount <= 1) {
+                    result.append(char)
+                }
+            }
+            // 🔥 NUEVO: Resetear contador de espacios cuando se escribe un caracter
+            else -> {
+                spaceCount = 0
+                result.append(char)
+            }
+        }
+    }
+
+    return result.toString()
+}
+
+// 🔥 MODIFICADO: Nueva función para formatear el correo con las restricciones
+private fun formatEmailText(currentText: String, newText: String): String {
+    if (newText.isEmpty()) return ""
+
+    // Si el texto nuevo es más corto que el actual, es una eliminación, permitir
+    if (newText.length < currentText.length) {
+        return newText
+    }
+
+    // 🔥 NUEVO: Limitar a máximo 35 caracteres
+    if (newText.length > 35) {
+        return currentText
+    }
+
+    // 🔥 NUEVO: No permitir espacios en el correo
+    if (newText.any { it.isWhitespace() }) {
+        return currentText
+    }
+
+    return newText
+}
+
+// 🔥 MODIFICADO: Función de validación de nombre actualizada - VALIDACIONES SIMPLIFICADAS
 private fun validateNombreRealTime(nombre: String): String {
     if (nombre.isBlank()) return ""
 
     return when {
-        nombre.length < 2 -> "Mínimo 2 caracteres"
-        nombre.length > 50 -> "Máximo 50 caracteres"
+        nombre.length < 3 -> "Mínimo 3 caracteres" // 🔥 MODIFICADO: Cambiado de 2 a 3 caracteres
+        nombre.length > 30 -> "Máximo 30 caracteres"
         nombre.any { it.isDigit() } -> "No puede contener números"
         nombre.contains(Regex(".*\\d.*")) -> "No puede contener números"
         !nombre.matches(Regex("^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+\$")) -> "Solo letras y espacios"
-        nombre.trim().split("\\s+".toRegex()).size < 3 -> "Ingresa nombre y apellidos"
         else -> ""
     }
 }
 
+// 🔥 MODIFICADO: Función de validación de email actualizada
 private fun validateEmailRealTime(email: String): String {
     if (email.isBlank()) return ""
 
     return when {
-        email.contains(" ") -> "No se permiten espacios en el correo"
+        email.contains(" ") -> "No se permiten espacios en el correo" // 🔥 Ya no debería ocurrir por el formateo
         email.startsWith(".") -> "No puede empezar con punto"
         email.endsWith(".") -> "No puede terminar con punto"
         email.contains("..") -> "No se permiten puntos consecutivos"
@@ -59,7 +137,7 @@ private fun validateEmailRealTime(email: String): String {
         email.split("@")[0].isEmpty() -> "Falta la parte antes del @"
         email.split("@")[1].isEmpty() -> "Falta el dominio después del @"
         email.split("@")[0].length > 30 -> "Máximo 30 caracteres antes del @"
-        email.length > 64 -> "Máximo 64 caracteres en total"
+        email.length > 35 -> "Máximo 35 caracteres en total" // 🔥 ACTUALIZADO: 35 caracteres
         email.contains("@") && !isValidEmailDomain(email.split("@")[1]) -> "Dominio de correo no válido"
         else -> ""
     }
@@ -70,7 +148,6 @@ private fun validatePasswordRealTime(password: String): String {
 
     return when {
         password.length < 8 -> "Mínimo 8 caracteres"
-        password.length > 30 -> "Máximo 30 caracteres"
         !password.any { it.isUpperCase() } -> "Al menos una mayúscula"
         !password.any { it.isLowerCase() } -> "Al menos una minúscula"
         !password.any { it.isDigit() } -> "Al menos un número"
@@ -94,6 +171,39 @@ private fun isValidEmailDomain(domain: String): Boolean {
     return allowedDomains.any { domain.equals(it, ignoreCase = true) }
 }
 
+// 🔥 NUEVO: Constantes para espaciado responsive
+private object RegisterScreenDimens {
+    // Espaciados base que se ajustan al tamaño de pantalla
+    val horizontalPadding: Dp
+        @Composable get() = with(LocalDensity.current) {
+            // Ajusta el padding según el tamaño de pantalla
+            if (LocalDensity.current.density > 2.5f) 28.dp else 24.dp
+        }
+
+    val verticalSpacingSmall: Dp
+        @Composable get() = 8.dp
+
+    val verticalSpacingMedium: Dp
+        @Composable get() = 16.dp
+
+    val verticalSpacingLarge: Dp
+        @Composable get() = 24.dp
+
+    val verticalSpacingXLarge: Dp
+        @Composable get() = 32.dp
+
+    val logoSize: Dp
+        @Composable get() = with(LocalDensity.current) {
+            if (LocalDensity.current.density > 2.5f) 100.dp else 90.dp
+        }
+
+    val buttonHeight: Dp
+        @Composable get() = 52.dp
+
+    val textFieldHeight: Dp
+        @Composable get() = 56.dp
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
@@ -102,6 +212,7 @@ fun RegisterScreen(
 ) {
     val context = LocalContext.current
 
+    // 🔥 OPTIMIZADO: Estados agrupados para mejor rendimiento
     var nombre by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -120,12 +231,12 @@ fun RegisterScreen(
     var passwordTouched by remember { mutableStateOf(false) }
     var confirmPasswordTouched by remember { mutableStateOf(false) }
 
-    // Estado de carga para simular procesamiento
     var isLoading by remember { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    // 🔥 OPTIMIZADO: DerivedStateOf para validación eficiente
     val isFormValid by remember(
         nombre, email, password, confirmPassword,
         nombreError, emailError, passwordError, confirmPasswordError, acceptTerms
@@ -143,6 +254,55 @@ fun RegisterScreen(
         }
     }
 
+    // 🔥 MODIFICADO: Funciones de manejo actualizadas con formateo
+    fun handleNombreChange(newNombre: String) {
+        val formattedNombre = formatNombreText(nombre, newNombre)
+        if (formattedNombre != nombre) {
+            nombre = formattedNombre
+            nombreTouched = true
+            if (nombreTouched) {
+                nombreError = validateNombreRealTime(formattedNombre)
+            }
+        }
+    }
+
+    fun handleEmailChange(newEmail: String) {
+        val formattedEmail = formatEmailText(email, newEmail)
+        if (formattedEmail != email) {
+            email = formattedEmail
+            emailTouched = true
+            if (emailTouched) {
+                emailError = validateEmailRealTime(formattedEmail)
+            }
+        }
+    }
+    fun handlePasswordChange(newPassword: String) {
+        // 🔥 MODIFICADO: Usar la función utilitaria que elimina espacios
+        val filteredPassword = validatePasswordInput(password, newPassword)
+        if (filteredPassword != password) {
+            password = filteredPassword
+            passwordTouched = true
+            if (passwordTouched) {
+                passwordError = validatePasswordRealTime(filteredPassword)
+            }
+            if (confirmPasswordTouched && confirmPassword.isNotBlank()) {
+                confirmPasswordError = validateConfirmPasswordRealTime(confirmPassword, filteredPassword)
+            }
+        }
+    }
+
+    fun handleConfirmPasswordChange(newConfirmPassword: String) {
+        // 🔥 MODIFICADO: Usar la función utilitaria que elimina espacios
+        val filteredConfirmPassword = validatePasswordInput(confirmPassword, newConfirmPassword)
+        if (filteredConfirmPassword != confirmPassword) {
+            confirmPassword = filteredConfirmPassword
+            confirmPasswordTouched = true
+            if (confirmPasswordTouched) {
+                confirmPasswordError = validateConfirmPasswordRealTime(filteredConfirmPassword, password)
+            }
+        }
+    }
+
     // 🚀 Modal de carga
     LoadingModal(
         isVisible = isLoading,
@@ -153,20 +313,21 @@ fun RegisterScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = RegisterScreenDimens.horizontalPadding),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 📍 Reducido de 80dp a 32dp
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingXLarge))
 
+        // 🔥 OPTIMIZADO: Logo con tamaño responsive
         Image(
             painter = painterResource(id = R.drawable.la_troca_logo),
             contentDescription = "Logo La Troca",
-            modifier = Modifier.size(120.dp)
+            modifier = Modifier.size(RegisterScreenDimens.logoSize)
         )
 
-        Spacer(modifier = Modifier.height(24.dp)) // Reducido de 32dp
+        Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingLarge))
 
+        // Títulos
         Text(
             text = "Crear cuenta",
             fontWeight = FontWeight.Bold,
@@ -174,281 +335,246 @@ fun RegisterScreen(
             color = Color(0xFF2D3748)
         )
 
+        Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingSmall))
+
         Text(
             text = "Completa tus datos para registrarte",
             fontSize = 14.sp,
             color = Color(0xFF718096)
         )
 
-        Spacer(modifier = Modifier.height(24.dp)) // Reducido de 32dp
+        Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingXLarge))
 
+        // 🔥 OPTIMIZADO: Campos del formulario con espaciado consistente
         Column(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(RegisterScreenDimens.verticalSpacingMedium)
         ) {
             // NOMBRE COMPLETO
-            Text(
-                text = "Nombre completo",
-                color = Color(0xFFE53E3E),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            OutlinedTextField(
-                value = nombre,
-                onValueChange = { newNombre ->
-                    if (newNombre.length <= 50) {
-                        nombre = newNombre
-                        nombreTouched = true
-                        if (nombreTouched) {
-                            nombreError = validateNombreRealTime(newNombre)
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp),
-                shape = RoundedCornerShape(8.dp),
-                singleLine = true,
-                enabled = !isLoading,
-                isError = nombreError.isNotBlank(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = if (nombreError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
-                    unfocusedBorderColor = if (nombreError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
-                    disabledBorderColor = Color(0xFFE2E8F0),
-                    focusedTextColor = Color(0xFF2D3748),
-                    unfocusedTextColor = Color(0xFF2D3748),
-                    disabledTextColor = Color(0xFF718096),
-                    cursorColor = Color(0xFFE53E3E),
-                    errorBorderColor = Color.Red,
-                    errorTextColor = Color.Red
-                ),
-                placeholder = {
-                    Text("Ingresa tu nombre completo", color = Color(0xFFB0BEC5))
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Nombre completo",
+                        color = Color(0xFFE53E3E),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
                 }
-            )
-            if (nombreError.isNotBlank() && nombreTouched) {
-                Text(
-                    text = nombreError,
-                    color = Color.Red,
-                    fontSize = 12.sp,
+                OutlinedTextField(
+                    value = nombre,
+                    onValueChange = ::handleNombreChange,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp, start = 4.dp)
+                        .height(RegisterScreenDimens.textFieldHeight),
+                    shape = RoundedCornerShape(8.dp),
+                    singleLine = true,
+                    enabled = !isLoading,
+                    isError = nombreError.isNotBlank(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (nombreError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
+                        unfocusedBorderColor = if (nombreError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                        disabledBorderColor = Color(0xFFE2E8F0),
+                        focusedTextColor = Color(0xFF2D3748),
+                        unfocusedTextColor = Color(0xFF2D3748),
+                        disabledTextColor = Color(0xFF718096),
+                        cursorColor = Color(0xFFE53E3E),
+                        errorBorderColor = Color.Red,
+                        errorTextColor = Color.Red
+                    ),
+                    placeholder = {
+                        Text("Ingresa tu nombre completo", color = Color(0xFFB0BEC5))
+                    }
                 )
-            } else {
-                Spacer(modifier = Modifier.height(12.dp))
+                if (nombreError.isNotBlank() && nombreTouched) {
+                    Text(
+                        text = nombreError,
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
             }
 
             // CORREO
-            Text(
-                text = "Correo",
-                color = Color(0xFFE53E3E),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            OutlinedTextField(
-                value = email,
-                onValueChange = { newEmail ->
-                    if (newEmail.length <= 64) {
-                        email = newEmail
-                        emailTouched = true
-                        if (emailTouched) {
-                            emailError = validateEmailRealTime(newEmail)
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp),
-                shape = RoundedCornerShape(8.dp),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                singleLine = true,
-                enabled = !isLoading,
-                isError = emailError.isNotBlank(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = if (emailError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
-                    unfocusedBorderColor = if (emailError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
-                    disabledBorderColor = Color(0xFFE2E8F0),
-                    focusedTextColor = Color(0xFF2D3748),
-                    unfocusedTextColor = Color(0xFF2D3748),
-                    disabledTextColor = Color(0xFF718096),
-                    cursorColor = Color(0xFFE53E3E),
-                    errorBorderColor = Color.Red,
-                    errorTextColor = Color.Red
-                ),
-                placeholder = {
-                    Text("ejemplo@uttt.edu.mx", color = Color(0xFFB0BEC5))
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Correo",
+                        color = Color(0xFFE53E3E),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
                 }
-            )
-            if (emailError.isNotBlank() && emailTouched) {
-                Text(
-                    text = emailError,
-                    color = Color.Red,
-                    fontSize = 12.sp,
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = ::handleEmailChange,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp, start = 4.dp)
+                        .height(RegisterScreenDimens.textFieldHeight),
+                    shape = RoundedCornerShape(8.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    singleLine = true,
+                    enabled = !isLoading,
+                    isError = emailError.isNotBlank(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (emailError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
+                        unfocusedBorderColor = if (emailError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                        disabledBorderColor = Color(0xFFE2E8F0),
+                        focusedTextColor = Color(0xFF2D3748),
+                        unfocusedTextColor = Color(0xFF2D3748),
+                        disabledTextColor = Color(0xFF718096),
+                        cursorColor = Color(0xFFE53E3E),
+                        errorBorderColor = Color.Red,
+                        errorTextColor = Color.Red
+                    ),
+                    placeholder = {
+                        Text("ejemplo@uttt.edu.mx", color = Color(0xFFB0BEC5))
+                    }
                 )
-            } else {
-                Spacer(modifier = Modifier.height(12.dp))
+                if (emailError.isNotBlank() && emailTouched) {
+                    Text(
+                        text = emailError,
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
             }
 
             // CONTRASEÑA
-            Text(
-                text = "Contraseña",
-                color = Color(0xFFE53E3E),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            OutlinedTextField(
-                value = password,
-                onValueChange = { newPassword ->
-                    if (newPassword.length <= 30) {
-                        password = newPassword
-                        passwordTouched = true
-                        if (passwordTouched) {
-                            passwordError = validatePasswordRealTime(newPassword)
-                        }
-                        if (confirmPasswordTouched && confirmPassword.isNotBlank()) {
-                            confirmPasswordError = validateConfirmPasswordRealTime(confirmPassword, newPassword)
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp),
-                shape = RoundedCornerShape(8.dp),
-                singleLine = true,
-                enabled = !isLoading,
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                isError = passwordError.isNotBlank(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = if (passwordError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
-                    unfocusedBorderColor = if (passwordError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
-                    disabledBorderColor = Color(0xFFE2E8F0),
-                    focusedTextColor = Color(0xFF2D3748),
-                    unfocusedTextColor = Color(0xFF2D3748),
-                    disabledTextColor = Color(0xFF718096),
-                    cursorColor = Color(0xFFE53E3E),
-                    errorBorderColor = Color.Red,
-                    errorTextColor = Color.Red
-                ),
-                placeholder = {
-                    Text("Mínimo 8 caracteres", color = Color(0xFFB0BEC5))
-                },
-                trailingIcon = {
-                    val image = if (passwordVisible)
-                        Icons.Filled.Visibility
-                    else
-                        Icons.Filled.VisibilityOff
-
-                    IconButton(
-                        onClick = { passwordVisible = !passwordVisible },
-                        enabled = !isLoading
-                    ) {
-                        Icon(
-                            imageVector = image,
-                            contentDescription = null,
-                            tint = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF718096)
-                        )
-                    }
-                }
-            )
-            if (passwordError.isNotBlank() && passwordTouched) {
+            Column {
                 Text(
-                    text = passwordError,
-                    color = Color.Red,
-                    fontSize = 12.sp,
+                    text = "Contraseña",
+                    color = Color(0xFFE53E3E),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = ::handlePasswordChange,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp, start = 4.dp)
+                        .height(RegisterScreenDimens.textFieldHeight),
+                    shape = RoundedCornerShape(8.dp),
+                    singleLine = true,
+                    enabled = !isLoading,
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    isError = passwordError.isNotBlank(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (passwordError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
+                        unfocusedBorderColor = if (passwordError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                        disabledBorderColor = Color(0xFFE2E8F0),
+                        focusedTextColor = Color(0xFF2D3748),
+                        unfocusedTextColor = Color(0xFF2D3748),
+                        disabledTextColor = Color(0xFF718096),
+                        cursorColor = Color(0xFFE53E3E),
+                        errorBorderColor = Color.Red,
+                        errorTextColor = Color.Red
+                    ),
+                    placeholder = {
+                        Text("Mínimo 8 caracteres", color = Color(0xFFB0BEC5))
+                    },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { passwordVisible = !passwordVisible },
+                            enabled = !isLoading
+                        ) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña",
+                                tint = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF718096)
+                            )
+                        }
+                    }
                 )
-            } else {
-                Spacer(modifier = Modifier.height(12.dp))
+                if (passwordError.isNotBlank() && passwordTouched) {
+                    Text(
+                        text = passwordError,
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
             }
 
             // CONFIRMAR CONTRASEÑA
-            Text(
-                text = "Confirmar Contraseña",
-                color = Color(0xFFE53E3E),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            OutlinedTextField(
-                value = confirmPassword,
-                onValueChange = { newConfirmPassword ->
-                    if (newConfirmPassword.length <= 30) {
-                        confirmPassword = newConfirmPassword
-                        confirmPasswordTouched = true
-                        if (confirmPasswordTouched) {
-                            confirmPasswordError = validateConfirmPasswordRealTime(newConfirmPassword, password)
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp),
-                shape = RoundedCornerShape(8.dp),
-                singleLine = true,
-                enabled = !isLoading,
-                visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                isError = confirmPasswordError.isNotBlank(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = if (confirmPasswordError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
-                    unfocusedBorderColor = if (confirmPasswordError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
-                    disabledBorderColor = Color(0xFFE2E8F0),
-                    focusedTextColor = Color(0xFF2D3748),
-                    unfocusedTextColor = Color(0xFF2D3748),
-                    disabledTextColor = Color(0xFF718096),
-                    cursorColor = Color(0xFFE53E3E),
-                    errorBorderColor = Color.Red,
-                    errorTextColor = Color.Red
-                ),
-                placeholder = {
-                    Text("Confirma tu contraseña", color = Color(0xFFB0BEC5))
-                },
-                trailingIcon = {
-                    val image = if (confirmPasswordVisible)
-                        Icons.Filled.Visibility
-                    else
-                        Icons.Filled.VisibilityOff
-
-                    IconButton(
-                        onClick = { confirmPasswordVisible = !confirmPasswordVisible },
-                        enabled = !isLoading
-                    ) {
-                        Icon(
-                            imageVector = image,
-                            contentDescription = null,
-                            tint = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF718096)
-                        )
-                    }
-                }
-            )
-            if (confirmPasswordError.isNotBlank() && confirmPasswordTouched) {
+            Column {
                 Text(
-                    text = confirmPasswordError,
-                    color = Color.Red,
-                    fontSize = 12.sp,
+                    text = "Confirmar Contraseña",
+                    color = Color(0xFFE53E3E),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = ::handleConfirmPasswordChange,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp, start = 4.dp)
+                        .height(RegisterScreenDimens.textFieldHeight),
+                    shape = RoundedCornerShape(8.dp),
+                    singleLine = true,
+                    enabled = !isLoading,
+                    visualTransformation = if (confirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    isError = confirmPasswordError.isNotBlank(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (confirmPasswordError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
+                        unfocusedBorderColor = if (confirmPasswordError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                        disabledBorderColor = Color(0xFFE2E8F0),
+                        focusedTextColor = Color(0xFF2D3748),
+                        unfocusedTextColor = Color(0xFF2D3748),
+                        disabledTextColor = Color(0xFF718096),
+                        cursorColor = Color(0xFFE53E3E),
+                        errorBorderColor = Color.Red,
+                        errorTextColor = Color.Red
+                    ),
+                    placeholder = {
+                        Text("Confirma tu contraseña", color = Color(0xFFB0BEC5))
+                    },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { confirmPasswordVisible = !confirmPasswordVisible },
+                            enabled = !isLoading
+                        ) {
+                            Icon(
+                                imageVector = if (confirmPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                contentDescription = if (confirmPasswordVisible) "Ocultar contraseña" else "Mostrar contraseña",
+                                tint = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF718096)
+                            )
+                        }
+                    }
                 )
+                if (confirmPasswordError.isNotBlank() && confirmPasswordTouched) {
+                    Text(
+                        text = confirmPasswordError,
+                        color = Color.Red,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp)) // Reducido de 16dp
+        Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingLarge))
 
         // TÉRMINOS Y CONDICIONES
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp), // Reducido de 24dp
+                .padding(bottom = RegisterScreenDimens.verticalSpacingMedium),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(
@@ -460,51 +586,15 @@ fun RegisterScreen(
                     disabledCheckedColor = Color(0xFFCBD5E0)
                 )
             )
-            Text(
-                text = "Acepto los ",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF4A5568)
-                )
-            )
-            Text(
-                text = "Términos de Servicio",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFFEF4444),
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier.clickableOnce(enabled = !isLoading) {
-                    val intent = Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://orlandogalvanvargas.github.io/la-troca-mobile-terminos-de-servicio/")
-                    )
-                    context.startActivity(intent)
-                }
-            )
-            Text(
-                text = " y ",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF4A5568)
-                )
-            )
-            Text(
-                text = "Política de Privacidad",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFFEF4444),
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier.clickableOnce(enabled = !isLoading) {
-                    val intent = Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse("https://la-troca-app.web.app/privacy-policy.html")
-                    )
-                    context.startActivity(intent)
-                }
-            )
+
+            // 🔥 OPTIMIZADO: Textos de términos en composable reutilizable
+            TermsAndPrivacyText(isLoading = isLoading)
         }
 
         // BOTÓN REGISTRARSE
         Button(
             onClick = {
+                // Validar todos los campos
                 nombreTouched = true
                 emailTouched = true
                 passwordTouched = true
@@ -517,15 +607,10 @@ fun RegisterScreen(
 
                 if (isFormValid) {
                     isLoading = true
-
-                    // Simular un pequeño delay para mostrar el loading
                     coroutineScope.launch {
-                        kotlinx.coroutines.delay(800) // Simular procesamiento
-
+                        kotlinx.coroutines.delay(800)
                         registrationViewModel.updateStep1Data(nombre, email, password)
-
                         isLoading = false
-
                         navController.navigate("completeProfile") {
                             popUpTo("register") { inclusive = false }
                         }
@@ -542,10 +627,7 @@ fun RegisterScreen(
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .clickableOnce(enabled = isFormValid && !isLoading) {
-                    // El onClick del Button maneja la lógica
-                },
+                .height(RegisterScreenDimens.buttonHeight),
             shape = RoundedCornerShape(10.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFFFF6B6B),
@@ -561,7 +643,7 @@ fun RegisterScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp)) // Reducido de 15dp
+        Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingMedium))
 
         // YA TIENES CUENTA
         Row(
@@ -576,14 +658,9 @@ fun RegisterScreen(
             )
             Spacer(modifier = Modifier.width(4.dp))
             TextButton(
-                onClick = {
-                    navController.navigate("login")
-                },
+                onClick = { navController.popBackStack() },
                 enabled = !isLoading,
-                contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.clickableOnce(enabled = !isLoading) {
-                    navController.navigate("login")
-                }
+                contentPadding = PaddingValues(0.dp)
             ) {
                 Text(
                     text = "Inicia sesión",
@@ -595,7 +672,7 @@ fun RegisterScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(40.dp)) // Reducido de 80dp
+        Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingXLarge))
     }
 
     Box(
@@ -607,4 +684,51 @@ fun RegisterScreen(
             modifier = Modifier.padding(16.dp)
         )
     }
+}
+
+// 🔥 NUEVO: Composable reutilizable para términos y privacidad
+@Composable
+private fun TermsAndPrivacyText(isLoading: Boolean) {
+    val context = LocalContext.current
+
+    Text(
+        text = "Acepto los ",
+        style = MaterialTheme.typography.bodySmall.copy(
+            color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF4A5568)
+        )
+    )
+    Text(
+        text = "Términos",
+        style = MaterialTheme.typography.bodySmall.copy(
+            color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFFEF4444),
+            fontWeight = FontWeight.Bold
+        ),
+        modifier = Modifier.clickableOnce(enabled = !isLoading) {
+            val intent = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://orlandogalvanvargas.github.io/la-troca-mobile-terminos-de-servicio/")
+            )
+            context.startActivity(intent)
+        }
+    )
+    Text(
+        text = " y ",
+        style = MaterialTheme.typography.bodySmall.copy(
+            color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFF4A5568)
+        )
+    )
+    Text(
+        text = "Política de Privacidad",
+        style = MaterialTheme.typography.bodySmall.copy(
+            color = if (isLoading) Color(0xFFCBD5E0) else Color(0xFFEF4444),
+            fontWeight = FontWeight.Bold
+        ),
+        modifier = Modifier.clickableOnce(enabled = !isLoading) {
+            val intent = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://la-troca-app.web.app/privacy-policy.html")
+            )
+            context.startActivity(intent)
+        }
+    )
 }

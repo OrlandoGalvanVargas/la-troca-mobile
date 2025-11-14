@@ -4,7 +4,6 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.ServerTimestamp
 
-// 💬 Modelo para un mensaje individual
 data class ChatMessage(
     @DocumentId
     val id: String = "",
@@ -14,15 +13,14 @@ data class ChatMessage(
     @ServerTimestamp
     val timestamp: Timestamp? = null,
     val read: Boolean = false,
-    val type: String = "text" // "text", "image", "file"
+    val type: String = "text"
 )
 
-// 📝 Modelo para la conversación/chat
 data class Chat(
     @DocumentId
     val id: String = "",
-    val participants: List<String> = emptyList(), // [userId1, userId2]
-    val participantNames: Map<String, String> = emptyMap(), // {userId: userName}
+    val participants: List<String> = emptyList(),
+    val participantNames: Map<String, String> = emptyMap(),
     val postId: String = "",
     val postTitle: String = "",
     val postImageUrl: String = "",
@@ -32,18 +30,10 @@ data class Chat(
     val lastMessageSenderId: String = "",
     @ServerTimestamp
     val lastMessageTimestamp: Timestamp? = null,
-    val unreadCount: Map<String, Int> = emptyMap() // {userId: count}
+    val unreadCount: Map<String, Int> = emptyMap(),
+    val hiddenFor: Map<String, Boolean> = emptyMap()
 )
 
-// 🔄 Estado de "escribiendo..."
-data class TypingStatus(
-    val userId: String = "",
-    val isTyping: Boolean = false,
-    @ServerTimestamp
-    val timestamp: Timestamp? = null
-)
-
-// 📱 Modelo para UI de lista de chats
 data class ChatListItem(
     val chatId: String,
     val otherUserId: String,

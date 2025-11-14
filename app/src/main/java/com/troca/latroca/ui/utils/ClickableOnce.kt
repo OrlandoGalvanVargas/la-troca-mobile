@@ -1,4 +1,4 @@
-package com.example.latroca.ui.utils
+package com.troca.latroca.ui.utils
 
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.*

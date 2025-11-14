@@ -11,6 +11,9 @@ data class AuthResponse(
 {
     val effectiveToken: String?
         get() = data?.token ?: token
+
+    val effectiveRole: String?
+        get() = data?.rol
 }
 
 

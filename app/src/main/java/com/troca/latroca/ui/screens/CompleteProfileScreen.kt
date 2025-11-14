@@ -1,11 +1,15 @@
 package com.troca.latroca.ui.screens
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Geocoder
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
-import android.util.Log
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,10 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.AddAlert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,36 +39,41 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
-import com.troca.latroca.domain.models.AuthResult
 import com.google.android.gms.location.*
+import com.troca.latroca.R
+import com.troca.latroca.domain.models.AuthResult
 import com.troca.latroca.ui.components.ImagePickerDialog
+import com.troca.latroca.ui.components.LoadingModal
 import com.troca.latroca.ui.viewmodels.RegistrationViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.io.File
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
 
-private fun getRealLocation(context: android.content.Context, onLocationResult: (String?, Double, Double) -> Unit) {
+private fun isLocationEnabled(context: Context): Boolean {
+    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    return locationManager.isLocationEnabled
+}
+
+private fun getRealLocation(
+    context: Context,
+    onLocationResult: (String?, Double, Double) -> Unit,
+    onError: (String) -> Unit
+) {
     val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-    val locationRequest = LocationRequest.Builder(
-        Priority.PRIORITY_HIGH_ACCURACY,
-        10000L
-    ).build()
+    val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000L).build()
 
     val locationCallback = object : LocationCallback() {
         override fun onLocationResult(locationResult: LocationResult) {
             locationResult.lastLocation?.let { location ->
-                val geocoder = Geocoder(context, java.util.Locale.getDefault())
                 try {
-                    val addresses = geocoder.getFromLocation(
-                        location.latitude,
-                        location.longitude,
-                        1
-                    )
-                    if (addresses?.isNotEmpty() == true) {
+                    val geocoder = Geocoder(context, Locale.getDefault())
+                    val addresses = geocoder.getFromLocation(location.latitude, location.longitude, 1)
+
+                    val locationName = if (!addresses.isNullOrEmpty()) {
                         val address = addresses[0]
-                        val locationName = buildString {
+                        buildString {
                             address.locality?.let { append(it) }
                             address.adminArea?.let {
                                 if (isNotEmpty()) append(", ")
@@ -75,40 +83,41 @@ private fun getRealLocation(context: android.content.Context, onLocationResult: 
                                 if (isNotEmpty()) append(", ")
                                 append(it)
                             }
-                            if (isEmpty()) {
-                                append("${location.latitude}, ${location.longitude}")
-                            }
+                            if (isEmpty()) append("${location.latitude}, ${location.longitude}")
                         }
-                        onLocationResult(locationName, location.latitude, location.longitude)
                     } else {
-                        onLocationResult("${location.latitude}, ${location.longitude}", location.latitude, location.longitude)
+                        "${location.latitude}, ${location.longitude}"
                     }
-                } catch (e: Exception) {
-                    onLocationResult("${location.latitude}, ${location.longitude}", location.latitude, location.longitude)
+
+                    onLocationResult(locationName, location.latitude, location.longitude)
+                } catch (_: IOException) {
+                    onError("Error de red al obtener ubicación")
+                } catch (_: Exception) {
+                    onError("Error al procesar ubicación")
                 }
             } ?: run {
-                onLocationResult("No se pudo obtener ubicación", 0.0, 0.0)
+                onError("No se pudo obtener tu ubicación")
             }
             fusedLocationClient.removeLocationUpdates(this)
         }
     }
 
-    if (ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
-        ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-    ) {
-        fusedLocationClient.requestLocationUpdates(
-            locationRequest,
-            locationCallback,
-            android.os.Looper.getMainLooper()
-        )
-    } else {
-        onLocationResult("Permisos de ubicación no concedidos", 0.0, 0.0)
+    try {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED) {
+
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                locationCallback,
+                android.os.Looper.getMainLooper()
+            )
+        } else {
+            onError("Permisos de ubicación no concedidos")
+        }
+    } catch (_: SecurityException) {
+        onError("Error de permisos de ubicación")
     }
 }
 
@@ -120,137 +129,118 @@ fun CompleteProfileScreen(
 ) {
     val context = LocalContext.current
     val uiState by registrationViewModel.uiState.collectAsState()
+    val registrationData by registrationViewModel.registrationData.collectAsState()
 
     var bio by remember { mutableStateOf("") }
     var ubicacion by remember { mutableStateOf("") }
-    var showImagePicker by remember { mutableStateOf(false) }
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-
-    var isGettingLocation by remember { mutableStateOf(false) }
-    var locationError by remember { mutableStateOf<String?>(null) }
     var latitude by remember { mutableStateOf(0.0) }
     var longitude by remember { mutableStateOf(0.0) }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
 
     var bioError by remember { mutableStateOf("") }
     var ubicacionError by remember { mutableStateOf("") }
-    var bioTouched by remember { mutableStateOf(false) }
-    var ubicacionTouched by remember { mutableStateOf(false) }
 
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
-    var showSuccessAlert by remember { mutableStateOf(false) }
-    // 🆕 Estado para error de imagen inapropiada
+    var isGettingLocation by remember { mutableStateOf(false) }
+    var showImagePicker by remember { mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
     var showImageErrorDialog by remember { mutableStateOf(false) }
-    var imageErrorMessage by remember { mutableStateOf("") }
+    var showLocationSettingsDialog by remember { mutableStateOf(false) }
 
-    var showNotificationPermissionDialog by remember { mutableStateOf(false) }
     var hasNotificationPermission by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                    PackageManager.PERMISSION_GRANTED
         )
     }
+    var showPermissionRationale by remember { mutableStateOf(false) }
+    var permissionRequestCount by remember { mutableIntStateOf(0) }
+    var showManualPermissionDialog by remember { mutableStateOf(false) }
+    var locationPermissionRequestCount by remember { mutableIntStateOf(0) }
+    var showLocationPermissionRationale by remember { mutableStateOf(false) }
+    var showLocationManualSettingsDialog by remember { mutableStateOf(false) }
 
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasNotificationPermission = isGranted
-        if (isGranted) {
-            coroutineScope.launch {
-                Toast.makeText(
-                    context,
-                    "Notificaciones activadas",
-                    Toast.LENGTH_SHORT
-                ).show()
+    val validateBio = remember {
+        { text: String ->
+            when {
+                text.isBlank() -> ""
+                text.length < 10 -> "Mínimo 10 caracteres"
+                text.length > 130 -> "Máximo 130 caracteres"
+                text.trim().split("\\s+".toRegex()).size < 3 -> "Escribe al menos 3 palabras"
+                else -> ""
             }
         }
     }
 
-    val registrationData by registrationViewModel.registrationData.collectAsState()
+    val validateUbicacion = remember {
+        { text: String ->
+            when {
+                text.isBlank() -> ""
+                text.length < 3 -> "Mínimo 3 caracteres"
+                text.length > 100 -> "Máximo 100 caracteres"
+                else -> ""
+            }
+        }
+    }
+
+    val isFormValid by remember(bio, ubicacion, bioError, ubicacionError, latitude, longitude) {
+        derivedStateOf {
+            bio.isNotBlank() &&
+                    ubicacion.isNotBlank() &&
+                    bioError.isBlank() &&
+                    ubicacionError.isBlank() &&
+                    latitude != 0.0 &&
+                    longitude != 0.0
+        }
+    }
 
     LaunchedEffect(registrationData.imageUri) {
         selectedImageUri = registrationData.imageUri
     }
 
-    // 🆕 Manejo de estados del ViewModel (SUCCESS y ERROR)
+    LaunchedEffect(bio, ubicacion, latitude, longitude, selectedImageUri) {
+        registrationViewModel.updateStep2Data(bio, ubicacion, latitude, longitude, selectedImageUri)
+    }
+
     LaunchedEffect(uiState) {
-        when (uiState) {
+        when (val state = uiState) {
             is AuthResult.Success -> {
-                showSuccessAlert = true
+                showSuccessDialog = true
             }
             is AuthResult.Error -> {
-                val errorMessage = (uiState as AuthResult.Error).message
+                val errorMessage = state.message
 
-                // 🔍 Detectar si es error de imagen inapropiada
-                if (errorMessage.contains("imagen", ignoreCase = true) &&
-                    errorMessage.contains("apropiada", ignoreCase = true)) {
-
-                    imageErrorMessage = errorMessage
-                    showImageErrorDialog = true
-                } else {
-                    // Otros errores genéricos
-                    Toast.makeText(
-                        context,
-                        errorMessage,
-                        Toast.LENGTH_LONG
-                    ).show()
+                when {
+                    errorMessage.contains("imagen", ignoreCase = true) &&
+                            errorMessage.contains("apropiada", ignoreCase = true) -> {
+                        showImageErrorDialog = true
+                    }
+                    errorMessage.contains("network", ignoreCase = true) ||
+                            errorMessage.contains("timeout", ignoreCase = true) -> {
+                        Toast.makeText(
+                            context,
+                            "Sin conexión a internet. Inténtalo nuevamente",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    errorMessage.contains("500", ignoreCase = true) ||
+                            errorMessage.contains("502", ignoreCase = true) -> {
+                        Toast.makeText(
+                            context,
+                            "Servidor no disponible. Inténtalo más tarde",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    else -> {
+                        Toast.makeText(
+                            context,
+                            errorMessage,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
-
                 registrationViewModel.clearErrors()
             }
             else -> {}
-        }
-    }
-
-    fun validateBioRealTime(bio: String): String {
-        if (bio.isBlank()) return ""
-        return when {
-            bio.length < 10 -> "Mínimo 10 caracteres"
-            bio.length > 200 -> "Máximo 200 caracteres"
-            bio.contains("..") -> "No se permiten puntos consecutivos"
-            bio.trim().split("\\s+".toRegex()).size < 3 -> "Escribe al menos 3 palabras"
-            else -> ""
-        }
-    }
-
-    fun validateUbicacionRealTime(ubicacion: String): String {
-        if (ubicacion.isBlank()) return ""
-        return when {
-            ubicacion.length < 3 -> "Mínimo 3 caracteres"
-            ubicacion.length > 100 -> "Máximo 100 caracteres"
-            ubicacion.contains("..") -> "No se permiten puntos consecutivos"
-            else -> ""
-        }
-    }
-
-    fun isFormValid(): Boolean {
-        return bio.isNotBlank() &&
-                ubicacion.isNotBlank() &&
-                bioError.isBlank() &&
-                ubicacionError.isBlank()
-    }
-
-    LaunchedEffect(Unit) {
-        registrationViewModel.clearErrors()
-        registrationViewModel.updateStep2Data("", "", 0.0, 0.0, null)
-
-        delay(1000)
-
-        // Solo pedir permiso si es Android 13+ y no lo tiene
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            !hasNotificationPermission
-        ) {
-            showNotificationPermissionDialog = true
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            if (!showSuccessAlert) {
-                registrationViewModel.resetState()
-            }
         }
     }
 
@@ -262,198 +252,405 @@ fun CompleteProfileScreen(
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
     }
 
-    // Launchers para permisos de ubicación
+
+     fun proceedWithLocationRequest() {
+        if (!isLocationEnabled(context)) {
+            showLocationSettingsDialog = true
+            return
+        }
+
+        isGettingLocation = true
+        getRealLocation(
+            context = context,
+            onLocationResult = { locationName, lat, lon ->
+                isGettingLocation = false
+                if (locationName != null && lat != 0.0 && lon != 0.0) {
+                    ubicacion = locationName
+                    latitude = lat
+                    longitude = lon
+                    ubicacionError = validateUbicacion(locationName)
+                    Toast.makeText(context, "Ubicación detectada correctamente", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onError = { error ->
+                isGettingLocation = false
+                Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    fun shouldShowRequestPermissionRationale(permission: String): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            (context as? Activity)?.shouldShowRequestPermissionRationale(permission) ?: false
+        } else {
+            false
+        }
+    }
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
         val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
 
-        if (fineLocationGranted || coarseLocationGranted) {
-            isGettingLocation = true
-            locationError = null
-            getRealLocation(context) { locationName, lat, lon ->
-                isGettingLocation = false
-                if (locationName != null && lat != 0.0 && lon != 0.0) {
-                    ubicacion = locationName
-                    latitude = lat
-                    longitude = lon
-                    ubicacionError = validateUbicacionRealTime(locationName)
-                } else {
-                    locationError = "No se pudo obtener la ubicación"
-                    Toast.makeText(
-                        context,
-                        "No se pudo obtener la ubicación",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    latitude = 0.0
-                    longitude = 0.0
-                }
-            }
+        val isGranted = fineLocationGranted || coarseLocationGranted
+
+        if (isGranted) {
+            locationPermissionRequestCount = 0
+            showLocationPermissionRationale = false
+            proceedWithLocationRequest()
         } else {
-            isGettingLocation = false
-            locationError = "Permiso de ubicación denegado"
-            Toast.makeText(
-                context,
-                "Permiso de ubicación denegado",
-                Toast.LENGTH_SHORT
-            ).show()
+            locationPermissionRequestCount++
+
+            val shouldShowRationale = shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION) ||
+                    shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION)
+
+            if (!shouldShowRationale && locationPermissionRequestCount >= 1) {
+                showLocationManualSettingsDialog = true
+            } else if (locationPermissionRequestCount == 1) {
+                showLocationPermissionRationale = true
+            } else {
+                Toast.makeText(
+                    context,
+                    "Se necesitan permisos de ubicación para detectar tu ubicación automáticamente",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
-    // Launchers para cámara y galería
+
     val cameraLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
         if (success) {
             selectedImageUri = photoUri
-            registrationViewModel.updateStep2Data(bio, ubicacion, latitude, longitude, selectedImageUri)
         }
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let {
-            selectedImageUri = it
-            registrationViewModel.updateStep2Data(bio, ubicacion, latitude, longitude, selectedImageUri)
-        }
+        uri?.let { selectedImageUri = it }
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
+    ) { granted ->
+        if (granted) {
             cameraLauncher.launch(photoUri)
         } else {
+            Toast.makeText(context, "Permiso de cámara denegado", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasNotificationPermission = granted
+
+        if (granted) {
             Toast.makeText(
                 context,
-                "Permiso de cámara denegado",
-                Toast.LENGTH_SHORT
+                "¡Notificaciones activadas! Te mantendremos informado",
+                Toast.LENGTH_LONG
             ).show()
-        }
-    }
-
-    // Función para solicitar ubicación
-    fun requestLocation() {
-        ubicacionTouched = true
-        val hasFineLocationPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val hasCoarseLocationPermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (hasFineLocationPermission && hasCoarseLocationPermission) {
-            isGettingLocation = true
-            locationError = null
-            getRealLocation(context) { locationName, lat, lon ->
-                isGettingLocation = false
-                if (locationName != null && lat != 0.0 && lon != 0.0) {
-                    ubicacion = locationName
-                    latitude = lat
-                    longitude = lon
-                    ubicacionError = validateUbicacionRealTime(locationName)
-
-                } else {
-                    locationError = "No se pudo obtener la ubicación"
-                    Toast.makeText(
-                        context,
-                        "No se pudo obtener la ubicación",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    latitude = 0.0
-                    longitude = 0.0
-                }
-            }
+            showPermissionRationale = false
         } else {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
+            permissionRequestCount++
+
+            if (permissionRequestCount == 1) {
+                showPermissionRationale = true
+                Toast.makeText(
+                    context,
+                    "Las notificaciones te ayudan a no perderte mensajes importantes",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                showManualPermissionDialog = true
+            }
         }
     }
 
-    LaunchedEffect(bio, ubicacion, latitude, longitude, selectedImageUri) {
-        registrationViewModel.updateStep2Data(bio, ubicacion, latitude, longitude, selectedImageUri)
-    }
-
-    // Manejo de estados del ViewModel
-    LaunchedEffect(uiState) {
-        when (uiState) {
-            is com.troca.latroca.domain.models.AuthResult.Success -> {
-                showSuccessAlert = true
-            }
-            is com.troca.latroca.domain.models.AuthResult.Error -> {
-                val errorMessage = (uiState as com.troca.latroca.domain.models.AuthResult.Error).message
-
-                val relevantErrors = listOf("biografía", "foto", "perfil", "registro", "completar", "ubicación")
-               /*
-                if (relevantErrors.any { errorMessage.contains(it, ignoreCase = true) }) {
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(
-                            "Error: $errorMessage",
-                            duration = SnackbarDuration.Long
-                        )
-                    }
-                }
-                */
-            }
-            else -> {}
-        }
-    }
-
-    if (showNotificationPermissionDialog) {
+    if (showManualPermissionDialog) {
         AlertDialog(
-            onDismissRequest = {
-                showNotificationPermissionDialog = false
-            },
+            onDismissRequest = { showManualPermissionDialog = false },
             title = {
                 Text(
-                    "¡No te pierdas los mejores trueques! 🔔",
+                    "Activar notificaciones manualmente",
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Column {
-                    Text("Activa las notificaciones para:")
+                    Text("Para activar las notificaciones:")
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("• 📦 Nuevos productos cerca de ti")
-                    Text("• 💬 Mensajes de otros usuarios")
-                    Text("• ✅ Confirmaciones de intercambios")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Puedes activarlas después en Configuración",
-                        color = Color(0xFF718096),
-                        fontSize = 14.sp
-                    )
+                    Text("1. Ve a Configuración del dispositivo")
+                    Text("2. Busca 'Aplicaciones' o 'Apps'")
+                    Text("3. Encuentra 'La Troca'")
+                    Text("4. Toca 'Notificaciones'")
+                    Text("5. Activa 'Permitir notificaciones'")
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        showNotificationPermissionDialog = false
+                        showManualPermissionDialog = false
+                        try {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            Toast.makeText(
+                                context,
+                                "Abre Configuración > Aplicaciones > La Troca > Notificaciones",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                ) {
+                    Text("Abrir Configuración")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showManualPermissionDialog = false }) {
+                    Text("Más tarde")
+                }
+            }
+        )
+    }
+
+    if (showPermissionRationale) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AddAlert,
+                    contentDescription = "Información",
+                    tint = Color(0xFFD97706),
+                    modifier = Modifier
+                        .size(32.dp)
+                        .padding(end = 12.dp)
+                )
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "¿Por qué son importantes?",
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF92400E),
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        "Recibirás alertas instantáneas cuando alguien quiera hacer trueque contigo o te envíe mensajes",
+                        fontSize = 12.sp,
+                        color = Color(0xFF92400E),
+                        lineHeight = 14.sp
+                    )
+                }
+
+                Button(
+                    onClick = {
                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        showPermissionRationale = false
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE53E3E)
-                    )
+                        containerColor = Color(0xFFD97706),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.padding(start = 8.dp)
                 ) {
-                    Text("Activar notificaciones")
+                    Text("Intentar de nuevo", fontSize = 12.sp)
+                }
+            }
+        }
+    }
+    fun requestLocation() {
+        val hasFineLocation = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val hasCoarseLocation = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        when {
+            hasFineLocation || hasCoarseLocation -> {
+                if (!isLocationEnabled(context)) {
+                    showLocationSettingsDialog = true
+                } else {
+                    proceedWithLocationRequest()
+                }
+            }
+
+            showLocationManualSettingsDialog -> {
+                showLocationManualSettingsDialog = true
+            }
+
+            showLocationPermissionRationale -> {
+                showLocationPermissionRationale = true
+            }
+
+            else -> {
+                locationPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
+            }
+        }
+    }
+    if (showLocationPermissionRationale) {
+        AlertDialog(
+            onDismissRequest = { showLocationPermissionRationale = false },
+            title = {
+                Text("Ubicación necesaria", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    Text("La ubicación nos ayuda a:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("• Mostrar trueques cerca de ti")
+                    Text("• Conectar con usuarios de tu zona")
+                    Text("• Mejorar tu experiencia de trueques")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Tu privacidad es importante - solo usamos tu ubicación para estos fines.")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLocationPermissionRationale = false
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    }
+                ) {
+                    Text("Entendido, permitir")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLocationPermissionRationale = false }) {
+                    Text("Ahora no")
+                }
+            }
+        )
+    }
+
+    if (showLocationManualSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showLocationManualSettingsDialog = false },
+            title = {
+                Text("Activar ubicación manualmente", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    Text("Has denegado los permisos de ubicación. Para activarlos:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("1. Ve a Configuración del dispositivo")
+                    Text("2. Busca 'Aplicaciones' o 'Apps'")
+                    Text("3. Encuentra 'La Troca'")
+                    Text("4. Toca 'Permisos'")
+                    Text("5. Activa 'Ubicación'")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLocationManualSettingsDialog = false
+                        try {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            Toast.makeText(
+                                context,
+                                "Abre Configuración > Aplicaciones > La Troca > Permisos > Ubicación",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                ) {
+                    Text("Abrir Configuración")
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = {
-                        showNotificationPermissionDialog = false
+                        showLocationManualSettingsDialog = false
+                        Toast.makeText(
+                            context,
+                            "Puedes escribir tu ubicación manualmente",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 ) {
-                    Text("Ahora no", color = Color(0xFF718096))
+                    Text("Escribir manualmente")
+                }
+            }
+        )
+    }
+
+    LoadingModal(
+        isVisible = uiState is AuthResult.Loading,
+        message = "Configurando tu cuenta...",
+        timeoutSeconds = 30
+    )
+
+    if (showLocationSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showLocationSettingsDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.LocationOff,
+                    contentDescription = null,
+                    tint = Color(0xFFE53935),
+                    modifier = Modifier.size(48.dp)
+                )
+            },
+            title = {
+                Text(
+                    "Ubicación desactivada",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Text(
+                    "Para obtener tu ubicación automáticamente, activa el GPS en la configuración de tu dispositivo.",
+                    textAlign = TextAlign.Center
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLocationSettingsDialog = false
+                        val intent = android.content.Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                        context.startActivity(intent)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                ) {
+                    Text("Abrir configuración")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLocationSettingsDialog = false }) {
+                    Text("Cancelar", color = Color(0xFF718096))
                 }
             }
         )
@@ -465,542 +662,405 @@ fun CompleteProfileScreen(
                 showImageErrorDialog = false
                 registrationViewModel.clearErrors()
             },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFFE53935),
+                    modifier = Modifier.size(48.dp)
+                )
+            },
             title = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = "Advertencia",
-                        tint = Color(0xFFE53E3E),
-                        modifier = Modifier.size(60.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Imagen No Apropiada",
-                        textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = Color(0xFFE53E3E)
-                    )
-                }
+                Text(
+                    "Imagen no apropiada",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
+                )
             },
             text = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Por favor, selecciona una imagen diferente para tu perfil.",
-                        textAlign = TextAlign.Center,
-                        fontSize = 14.sp,
-                        color = Color(0xFF718096)
-                    )
-                }
+                Text(
+                    "Por favor, selecciona una imagen diferente para tu perfil.",
+                    textAlign = TextAlign.Center
+                )
             },
             confirmButton = {
                 Button(
                     onClick = {
                         showImageErrorDialog = false
-                        // Limpiar la imagen seleccionada
                         selectedImageUri = null
-                        registrationViewModel.updateStep2Data(bio, ubicacion, latitude, longitude, null)
                         registrationViewModel.clearErrors()
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE53E3E)
-                    ),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Seleccionar otra imagen")
                 }
-            },
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp)
+            }
         )
     }
 
-    if (showSuccessAlert) {
+    if (showSuccessDialog) {
         LaunchedEffect(Unit) {
-            delay(1300) // 1.3 segundos
-            showSuccessAlert = false
+            delay(1500)
+            showSuccessDialog = false
             navController.navigate("home") {
                 popUpTo(0) { inclusive = true }
             }
         }
 
         AlertDialog(
-            onDismissRequest = { },
+            onDismissRequest = {},
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = Color(0xFF10B981),
+                    modifier = Modifier.size(60.dp)
+                )
+            },
             title = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Éxito",
-                        tint = Color(0xFF10B981),
-                        modifier = Modifier.size(60.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "¡Registro exitoso!",
-                        textAlign = TextAlign.Center,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                }
+                Text(
+                    "¡Registro exitoso!",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center
+                )
             },
             text = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Tu cuenta ha sido creada correctamente.",
-                        textAlign = TextAlign.Center,
-                        fontSize = 16.sp
-                    )
-                }
+                Text(
+                    "Tu cuenta ha sido creada correctamente",
+                    textAlign = TextAlign.Center
+                )
             },
-            // Sin botones ni confirmación
             confirmButton = {},
-            dismissButton = {},
-            containerColor = Color.White,
-            shape = RoundedCornerShape(20.dp)
+            dismissButton = {}
         )
     }
 
-
     Scaffold(
-        containerColor = Color.White,
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        containerColor = Color.White
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.Start
+                .padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 📍 Reducido el espacio superior para subir todo el contenido
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
             Text(
                 text = "Configura tu perfil",
                 fontWeight = FontWeight.Bold,
                 fontSize = 24.sp,
-                color = Color(0xFF2D3748),
-                modifier = Modifier.padding(bottom = 8.dp)
+                color = Color(0xFF2D3748)
             )
 
             Text(
-                text = "Completa esta información para empezar a intercambiar",
+                text = "Completa tu información para empezar",
                 fontSize = 14.sp,
                 color = Color(0xFF718096),
-                modifier = Modifier.padding(bottom = 24.dp) // Reducido de 40dp
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
             )
 
             if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp),
+                        .padding(bottom = 24.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                    shape = RoundedCornerShape(12.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.notificacion_icon),
+                            contentDescription = "Notificaciones",
+                            tint = Color(0xFF16A34A),
+                            modifier = Modifier
+                                .size(40.dp)
+                                .padding(end = 16.dp)
+                        )
+
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Activar notificaciones",
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF166534)
+                                "No te pierdas nada importante",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF166534),
+                                fontSize = 16.sp
                             )
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                "Recibe alertas de nuevos trueques",
-                                fontSize = 14.sp,
-                                color = Color(0xFF718096)
+                                "Activa las notificaciones para recibir alertas de Mensajes de chat",
+                                fontSize = 13.sp,
+                                color = Color(0xFF4B5563),
+                                lineHeight = 16.sp
                             )
                         }
+
                         Button(
                             onClick = {
                                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF16A34A)
+                                containerColor = Color(0xFF16A34A),
+                                contentColor = Color.White
                             ),
-                            modifier = Modifier.height(36.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.padding(start = 12.dp)
                         ) {
-                            Text("Activar", fontSize = 14.sp)
+                            Text("Activar", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
             }
 
-            Column(
+            Surface(
+                onClick = { showImagePicker = true },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 24.dp), // Reducido de 32dp
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .size(120.dp)
+                    .clip(CircleShape),
+                color = Color(0xFFF7FAFC),
+                enabled = uiState !is AuthResult.Loading
             ) {
-                Text(
-                    text = "Foto de perfil:",
-                    color = Color(0xFFE53E3E),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .padding(bottom = 16.dp)
-                        .align(Alignment.Start)
-                )
-
-                Surface(
-                    onClick = { showImagePicker = true },
-                    modifier = Modifier
-                        .size(140.dp) // Reducido ligeramente de 160dp
-                        .clip(CircleShape),
-                    color = Color(0xFFF7FAFC),
-                    shape = CircleShape,
-                ) {
-                    if (selectedImageUri != null) {
-                        Image(
-                            painter = rememberAsyncImagePainter(selectedImageUri),
-                            contentDescription = "Foto de perfil",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "+",
-                                    fontSize = 28.sp,
-                                    color = Color(0xFF718096),
-                                    fontWeight = FontWeight.Light
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Agregar foto",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF718096)
-                                )
-                            }
+                if (selectedImageUri != null) {
+                    Image(
+                        painter = rememberAsyncImagePainter(selectedImageUri),
+                        contentDescription = "Foto de perfil",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.AddAPhoto,
+                                contentDescription = null,
+                                tint = Color(0xFF718096),
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Agregar foto",
+                                fontSize = 12.sp,
+                                color = Color(0xFF718096)
+                            )
                         }
                     }
                 }
             }
 
-            Column(
+            Spacer(modifier = Modifier.height(32.dp))
+
+            OutlinedTextField(
+                value = bio,
+                onValueChange = { newText ->
+                    val formattedText = formatBioText(bio, newText)
+                    if (formattedText.length <= 130) {
+                        bio = formattedText
+                        bioError = validateBio(formattedText)
+                    }
+                },
+                label = { Text("Biografía", fontSize = 14.sp) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 20.dp) // Reducido de 24dp
+                    .heightIn(min = 100.dp),
+                shape = RoundedCornerShape(12.dp),
+                maxLines = 4,
+                enabled = uiState !is AuthResult.Loading,
+                isError = bioError.isNotBlank(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = if (bioError.isNotBlank()) Color.Red else Color(0xFFE53935),
+                    unfocusedBorderColor = if (bioError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                    disabledBorderColor = Color(0xFFE2E8F0),
+                    focusedTextColor = Color(0xFF2D3748),
+                    unfocusedTextColor = Color(0xFF2D3748),
+                    disabledTextColor = Color(0xFF718096),
+                    cursorColor = Color(0xFFE53935),
+                    errorBorderColor = Color.Red
+                ),
+                placeholder = {
+                    Text("Cuéntanos sobre ti (min. 10 caracteres)", fontSize = 13.sp)
+                },
+                supportingText = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        if (bioError.isNotBlank()) {
+                            Text(bioError, color = Color.Red, fontSize = 11.sp)
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                        Text("${bio.length}/130", fontSize = 11.sp, color = Color(0xFF718096))
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "Biografía:",
-                    color = Color(0xFFE53E3E),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                Text(
-                    text = "Cuéntanos un poco sobre ti",
-                    fontSize = 14.sp,
-                    color = Color(0xFF718096),
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
                 OutlinedTextField(
-                    value = bio,
+                    value = ubicacion,
                     onValueChange = {
-                        bio = it
-                        bioTouched = true
-                        if (bioTouched) {
-                            bioError = validateBioRealTime(it)
-                        }
+                        ubicacion = it
+                        ubicacionError = validateUbicacion(it)
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
+                    label = { Text("Ubicación", fontSize = 14.sp) },
+                    modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
-                    singleLine = false,
-                    maxLines = 4,
-                    isError = bioError.isNotBlank(),
+                    enabled = false,
+                    readOnly = true,
+                    singleLine = true,
+                    isError = ubicacionError.isNotBlank(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = if (bioError.isNotBlank()) Color.Red else Color(0xFFE53E3E),
-                        unfocusedBorderColor = if (bioError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                        focusedBorderColor = if (ubicacionError.isNotBlank()) Color.Red else Color(0xFFE53935),
+                        unfocusedBorderColor = if (ubicacionError.isNotBlank()) Color.Red else Color(0xFFE2E8F0),
+                        disabledBorderColor = Color(0xFFE2E8F0),
                         focusedTextColor = Color(0xFF2D3748),
                         unfocusedTextColor = Color(0xFF2D3748),
-                        cursorColor = Color(0xFFE53E3E),
-                        errorBorderColor = Color.Red,
-                        errorTextColor = Color.Red
+                        disabledTextColor = Color(0xFF2D3748),
+                        disabledPlaceholderColor = Color(0xFFA0AEC0),
+                        disabledLeadingIconColor = Color(0xFFA0AEC0),
+                        disabledTrailingIconColor = Color(0xFFA0AEC0),
+                        cursorColor = Color(0xFFE53935),
+                        errorBorderColor = Color.Red
                     ),
-                    placeholder = {
-                        Text(
-                            "Escribe tu biografía aquí... (mínimo 10 caracteres, 3 palabras)",
-                            color = Color(0xFFA0AEC0),
-                            fontSize = 14.sp
+                    supportingText = if (ubicacionError.isNotBlank()) {
+                        { Text(ubicacionError, color = Color.Red, fontSize = 11.sp) }
+                    } else null
+                )
+                IconButton(
+                    onClick = { requestLocation() },
+                    modifier = Modifier
+                        .size(56.dp)
+                        .padding(top = 4.dp),
+                    enabled = uiState !is AuthResult.Loading && !isGettingLocation
+                ) {
+                    if (isGettingLocation) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = Color(0xFFE53935)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.MyLocation,
+                            contentDescription = "GPS",
+                            tint = if (uiState is AuthResult.Loading) Color(0xFFCBD5E0) else Color(0xFFE53935),
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-                )
-                if (bioError.isNotBlank() && bioTouched) {
-                    Text(
-                        text = bioError,
-                        color = Color.Red,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp, start = 4.dp)
-                    )
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp) // Reducido de 40dp
-            ) {
-                Text(
-                    text = "Ubicación:",
-                    color = Color(0xFFE53E3E),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                Text(
-                    text = "Escribe tu ubicación o usa el GPS",
-                    fontSize = 14.sp,
-                    color = Color(0xFF718096),
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                locationError?.let { error ->
-                    Text(
-                        text = error,
-                        color = Color.Red,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = ubicacion,
-                        onValueChange = {
-                            ubicacion = it
-                            ubicacionTouched = true
-                            if (ubicacionTouched) {
-                                ubicacionError = validateUbicacionRealTime(it)
-                            }
-                            locationError = null
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.LocationOn,
-                                contentDescription = "Ubicación",
-                                tint = Color(0xFF718096)
-                            )
-                        },
-                        singleLine = true,
-                        isError = ubicacionError.isNotBlank() || locationError != null,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = when {
-                                ubicacionError.isNotBlank() || locationError != null -> Color.Red
-                                else -> Color(0xFFE53E3E)
-                            },
-                            unfocusedBorderColor = when {
-                                ubicacionError.isNotBlank() || locationError != null -> Color.Red
-                                else -> Color(0xFFE2E8F0)
-                            },
-                            focusedTextColor = Color(0xFF2D3748),
-                            unfocusedTextColor = Color(0xFF2D3748),
-                            cursorColor = Color(0xFFE53E3E),
-                            errorBorderColor = Color.Red,
-                            errorTextColor = Color.Red
-                        ),
-                        placeholder = {
-                            Text(
-                                "Ingresa tu ubicación..",
-                                color = Color(0xFFA0AEC0),
-                                fontSize = 14.sp
-                            )
-                        }
-                    )
-
-                    OutlinedButton(
-                        onClick = {
-                            ubicacionTouched = true
-                            requestLocation()
-                        },
-                        modifier = Modifier
-                            .height(56.dp)
-                            .width(80.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color(0xFFF7FAFC)
-                        ),
-                        enabled = !isGettingLocation
-                    ) {
-                        if (isGettingLocation) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.MyLocation,
-                                contentDescription = "Usar GPS",
-                                modifier = Modifier.size(22.dp),
-                                tint = Color(0xFFE53E3E)
-                            )
-                        }
-                    }
-                }
-                if (ubicacionError.isNotBlank() && ubicacionTouched) {
-                    Text(
-                        text = ubicacionError,
-                        color = Color.Red,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp, start = 4.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp)) // Reducido de 20dp
+            Spacer(modifier = Modifier.height(32.dp))
 
             Button(
                 onClick = {
-                    bioTouched = true
-                    ubicacionTouched = true
-                    bioError = validateBioRealTime(bio)
-                    ubicacionError = validateUbicacionRealTime(ubicacion)
+                    bioError = validateBio(bio)
+                    ubicacionError = validateUbicacion(ubicacion)
 
-                    if (isFormValid() && latitude != 0.0 && longitude != 0.0) {
+                    if (isFormValid) {
                         registrationViewModel.completeRegistration(context)
                     } else {
-                        coroutineScope.launch {
-                            val errorMessage = if (latitude == 0.0 && longitude == 0.0) {
-                                "Error: No se pudieron obtener las coordenadas GPS. Usa el botón de GPS nuevamente."
-                            } else {
-                                "Por favor completa correctamente todos los campos"
-                            }
-                            Toast.makeText(
-                                context,
-                                errorMessage,
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
+                        Toast.makeText(
+                            context,
+                            if (latitude == 0.0) "Usa el botón GPS para obtener tu ubicación"
+                            else "Completa correctamente todos los campos",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(14.dp),
+                    .height(52.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFF6B6B)
+                    containerColor = Color(0xFFE53935),
+                    disabledContainerColor = Color(0xFFE2E8F0)
                 ),
-                enabled = isFormValid() && uiState !is com.troca.latroca.domain.models.AuthResult.Loading
+                enabled = isFormValid && uiState !is AuthResult.Loading
             ) {
-                if (uiState is com.troca.latroca.domain.models.AuthResult.Loading) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Configurando cuenta....",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "Guardar y continuar",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Text(
+                    "Guardar y continuar",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
-            if (uiState is com.troca.latroca.domain.models.AuthResult.Loading) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Esto puede tomar unos segundos...",
-                        color = Color(0xFF718096),
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(24.dp)) // Reducido de 30dp
-                }
-            } else {
-                Spacer(modifier = Modifier.height(40.dp)) // Reducido de 50dp
-            }
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 
-    // seleccionar imagen
-    if (showImagePicker) {
+    if (showImagePicker && uiState !is AuthResult.Loading) {
         ImagePickerDialog(
             onTakePhoto = {
                 showImagePicker = false
-                val hasCameraPermission = ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.CAMERA
+                val hasCamera = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.CAMERA
                 ) == PackageManager.PERMISSION_GRANTED
 
-                if (hasCameraPermission) {
-                    cameraLauncher.launch(photoUri)
-                } else {
-                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                }
+                if (hasCamera) cameraLauncher.launch(photoUri)
+                else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
             },
             onSelectFromGallery = {
                 showImagePicker = false
-                val hasStoragePermission = ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.READ_EXTERNAL_STORAGE
-                ) == PackageManager.PERMISSION_GRANTED
-
-                if (hasStoragePermission) {
-                    galleryLauncher.launch("image/*")
-                } else {
-                    galleryLauncher.launch("image/*")
-                }
+                galleryLauncher.launch("image/*")
             },
             onDismiss = { showImagePicker = false }
         )
     }
+}
+private fun formatBioText(currentText: String, newText: String): String {
+    if (newText.isEmpty()) return ""
+
+    if (newText.length < currentText.length) {
+        return newText
+    }
+
+    val hasContent = currentText.any { it != ' ' && it != '\n' }
+
+    if (!hasContent) {
+        if (newText.first().isWhitespace()) {
+            return currentText
+        }
+    }
+
+    val result = StringBuilder()
+    var lastChar: Char? = null
+
+    for (char in newText) {
+        when {
+            result.isEmpty() && char.isWhitespace() -> {
+                continue
+            }
+            char == '\n' -> {
+                continue
+            }
+            char == ' ' && lastChar == ' ' -> {
+                continue
+            }
+            else -> {
+                result.append(char)
+                lastChar = char
+            }
+        }
+    }
+
+    return result.toString()
 }

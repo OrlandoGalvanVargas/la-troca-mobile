@@ -1,6 +1,5 @@
 package com.troca.latroca.ui.screens
 
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -10,6 +9,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,21 +17,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
-import com.example.latroca.ui.utils.clickableOnce
 import com.troca.latroca.data.repository.ChatRepository
-import com.troca.latroca.ui.components.LoadingModal
 import com.troca.latroca.ui.viewmodels.AuthViewModel
 import com.troca.latroca.ui.viewmodels.ChatViewModel
 import kotlinx.coroutines.launch
-
+import androidx.compose.ui.res.painterResource
+import com.troca.latroca.R
+import androidx.compose.foundation.Image
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material3.TextButton
+import androidx.core.content.ContextCompat
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatConversationScreen(
@@ -43,86 +50,60 @@ fun ChatConversationScreen(
     authViewModel: AuthViewModel
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val currentUserId = authViewModel.getUserId()
     val currentUserName = authViewModel.userProfile.value?.name ?: "Usuario"
+
+    var showNotificationBanner by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            showNotificationBanner = !granted
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        showNotificationBanner = !isGranted
+
+        if (isGranted) {
+            Toast.makeText(context, "Notificaciones activadas", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val messages by chatViewModel.messages.collectAsState()
     val isOtherUserTyping by chatViewModel.isOtherUserTyping.collectAsState()
     val error by chatViewModel.error.collectAsState()
 
     var messageText by remember { mutableStateOf("") }
-    var isSending by remember { mutableStateOf(false) }
-    var isInitialLoading by remember { mutableStateOf(true) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
-    // 🔥 Observar ciclo de vida para pausar/resumir listeners
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> {
-                    Log.d("ChatConversation", "ON_RESUME - Iniciando listeners")
-                    chatViewModel.listenToMessages(chatId, currentUserId)
-                    chatViewModel.listenToTypingStatus(chatId, otherUserId)
-                }
-                Lifecycle.Event.ON_PAUSE -> {
-                    Log.d("ChatConversation", "ON_PAUSE - Pausando listeners")
-                    chatViewModel.setTypingStatus(chatId, currentUserId, false)
-                }
-                Lifecycle.Event.ON_STOP -> {
-                    Log.d("ChatConversation", "ON_STOP")
-                }
-                else -> {}
+    LaunchedEffect(chatId) {
+        chatViewModel.listenToMessages(chatId, currentUserId)
+        chatViewModel.listenToTypingStatus(chatId, otherUserId)
+    }
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            coroutineScope.launch {
+                listState.animateScrollToItem(messages.size - 1)
             }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
+    }
 
+    DisposableEffect(Unit) {
         onDispose {
-            Log.d("ChatConversation", "onDispose - Limpiando")
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            chatViewModel.setTypingStatus(chatId, currentUserId, false)
             chatViewModel.clearMessages()
         }
     }
 
-    // 🔥 Iniciar listeners solo una vez
-    LaunchedEffect(chatId) {
-        try {
-            Log.d("ChatConversation", "Iniciando listeners para chatId: $chatId")
-            chatViewModel.listenToMessages(chatId, currentUserId)
-            chatViewModel.listenToTypingStatus(chatId, otherUserId)
-
-            // Dar tiempo para que carguen los mensajes
-            kotlinx.coroutines.delay(1000)
-            isInitialLoading = false
-        } catch (e: Exception) {
-            Log.e("ChatConversation", "Error al iniciar listeners: ${e.message}")
-            isInitialLoading = false
-            Toast.makeText(
-                context,
-                "Error al cargar el chat: ${e.message}",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
-    }
-
-    // 🔥 Auto-scroll al último mensaje con manejo de errores
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty() && !isInitialLoading) {
-            try {
-                coroutineScope.launch {
-                    // Esperar un poco para que el LazyColumn se actualice
-                    kotlinx.coroutines.delay(100)
-                    listState.animateScrollToItem(messages.size - 1)
-                }
-            } catch (e: Exception) {
-                Log.e("ChatConversation", "Error al hacer scroll: ${e.message}")
-            }
-        }
-    }
-
-    // 🔥 Mostrar errores con Toast
     LaunchedEffect(error) {
         error?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -130,17 +111,78 @@ fun ChatConversationScreen(
         }
     }
 
-    // 🚀 LoadingModal para envío de mensajes
-    LoadingModal(
-        isVisible = isSending,
-        message = "Enviando mensaje..."
-    )
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = {
+                Text(
+                    text = "Eliminar conversación",
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF2D3748)
+                )
+            },
+            text = {
+                Text(
+                    text = "¿Estás seguro de que deseas eliminar esta conversación?\n\n" +
+                            "Si el otro usuario aún tiene el chat, podrá enviarte mensajes " +
+                            "y la conversación se reactivará.",
+                    color = Color(0xFF4A5568),
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDialog = false
+                        chatViewModel.hideChatForUser(
+                            chatId = chatId,
+                            userId = currentUserId
+                        ) {
+                            Toast.makeText(
+                                context,
+                                "Conversación eliminada",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            navController.popBackStack()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE53935)
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        "Sí, eliminar",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteDialog = false },
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        "Cancelar",
+                        color = Color(0xFF718096),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color.White
+        )
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.Center
+                    ) {
                         Text(
                             text = otherUserName,
                             fontWeight = FontWeight.Bold,
@@ -160,14 +202,20 @@ fun ChatConversationScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(
-                        onClick = { navController.popBackStack() },
-                        enabled = !isSending
-                    ) {
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Volver",
-                            tint = if (isSending) Color(0xFFCBD5E0) else Color(0xFFE53935)
+                            tint = Color(0xFFE53935)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Eliminar conversación",
+                            tint = Color(0xFFE53935)
                         )
                     }
                 },
@@ -177,73 +225,62 @@ fun ChatConversationScreen(
             )
         }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFFF7FAFC))
                 .padding(paddingValues)
+                .background(Color(0xFFF7FAFC))
         ) {
-            when {
-                isInitialLoading -> {
-                    // Estado de carga inicial
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                if (messages.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = Color(0xFFE53935))
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "Cargando mensajes...",
-                                color = Color(0xFF718096),
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-                }
-                messages.isEmpty() && !isInitialLoading -> {
-                    // Sin mensajes
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "👋",
-                                fontSize = 48.sp
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(32.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.chat_icon),
+                                contentDescription = "Icono de chat vacío",
+                                modifier = Modifier.size(80.dp)
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = "No hay mensajes aún",
                                 fontSize = 16.sp,
-                                color = Color(0xFF718096),
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF718096)
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "Envía el primer mensaje a $otherUserName",
                                 fontSize = 14.sp,
-                                color = Color(0xFF718096)
+                                color = Color(0xFF718096),
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
-                }
-                else -> {
-                    // Lista de mensajes
+                } else {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
                             start = 16.dp,
-                            top = 16.dp,
                             end = 16.dp,
-                            bottom = 80.dp // 🔥 Espacio para el input field
+                            top = 12.dp,
+                            bottom = 12.dp
                         ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(
                             items = messages,
-                            key = { it.id } // 🔥 Importante para performance
+                            key = { it.id }
                         ) { message ->
                             MessageBubble(
                                 message = message,
@@ -251,127 +288,194 @@ fun ChatConversationScreen(
                                 chatRepository = ChatRepository()
                             )
                         }
-
-                        // Espacio final para mejor UX
-                        item {
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
                     }
+                }
+                if (showNotificationBanner) {
+                    NotificationBanner(
+                        onActivateNotifications = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        },
+                        onDismiss = {
+                            showNotificationBanner = false
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 16.dp, start = 16.dp, end = 16.dp)
+                    )
                 }
             }
 
-            // 🔥 Input field fijo en la parte inferior
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .background(Color.White),
+                modifier = Modifier.fillMaxWidth(),
                 shadowElevation = 8.dp,
                 color = Color.White
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
-                        .heightIn(min = 56.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(
+                            horizontal = 12.dp,
+                            vertical = 8.dp
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedTextField(
                         value = messageText,
                         onValueChange = {
-                            if (!isSending) {
-                                messageText = it
-                                // Indicar que está escribiendo
-                                try {
-                                    if (it.isNotBlank()) {
-                                        chatViewModel.setTypingStatus(chatId, currentUserId, true)
-                                    } else {
-                                        chatViewModel.setTypingStatus(chatId, currentUserId, false)
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("ChatConversation", "Error al actualizar typing status: ${e.message}")
-                                }
+                            messageText = it
+                            if (it.isNotBlank()) {
+                                chatViewModel.setTypingStatus(chatId, currentUserId, true)
+                            } else {
+                                chatViewModel.setTypingStatus(chatId, currentUserId, false)
                             }
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .heightIn(min = 48.dp, max = 120.dp),
-                        placeholder = { Text("Escribe un mensaje...", color = Color(0xFFB0BEC5)) },
+                            .heightIn(min = 48.dp, max = 100.dp),
+                        placeholder = {
+                            Text(
+                                "Escribe un mensaje...",
+                                color = Color(0xFFB0BEC5),
+                                fontSize = 14.sp
+                            )
+                        },
                         shape = RoundedCornerShape(24.dp),
-                        enabled = !isSending,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFFE53935),
                             unfocusedBorderColor = Color(0xFFE2E8F0),
-                            disabledBorderColor = Color(0xFFE2E8F0),
-                            disabledTextColor = Color(0xFF718096)
+                            focusedTextColor = Color(0xFF2D3748),
+                            unfocusedTextColor = Color(0xFF2D3748),
+                            cursorColor = Color(0xFFE53935)
                         ),
-                        maxLines = 4
+                        maxLines = 3,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 15.sp)
                     )
 
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Box(
-                        contentAlignment = Alignment.Center,
+                    IconButton(
+                        onClick = {
+                            if (messageText.isNotBlank()) {
+                                val token = authViewModel.getToken() ?: ""
+                                chatViewModel.sendMessage(
+                                    chatId = chatId,
+                                    senderId = currentUserId,
+                                    senderName = currentUserName,
+                                    text = messageText,
+                                    receiverId = otherUserId,
+                                    token = token
+                                )
+                                messageText = ""
+                            }
+                        },
                         modifier = Modifier
                             .size(48.dp)
                             .background(
-                                color = when {
-                                    isSending -> Color(0xFFB0BEC5)
-                                    messageText.isNotBlank() -> Color(0xFFE53935)
-                                    else -> Color(0xFFE2E8F0)
-                                },
+                                color = if (messageText.isNotBlank()) Color(0xFFE53935) else Color(0xFFE2E8F0),
                                 shape = RoundedCornerShape(24.dp)
                             )
-                            .clickableOnce(enabled = messageText.isNotBlank() && !isSending) {
-                                if (messageText.isNotBlank() && !isSending) {
-                                    isSending = true
-                                    val textToSend = messageText
-                                    messageText = ""
-
-                                    try {
-                                        chatViewModel.sendMessage(
-                                            chatId = chatId,
-                                            senderId = currentUserId,
-                                            senderName = currentUserName,
-                                            text = textToSend,
-                                            receiverId = otherUserId
-                                        )
-
-                                        // Resetear typing status
-                                        chatViewModel.setTypingStatus(chatId, currentUserId, false)
-
-                                        // Simular delay de envío
-                                        coroutineScope.launch {
-                                            kotlinx.coroutines.delay(500)
-                                            isSending = false
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e("ChatConversation", "Error al enviar mensaje: ${e.message}")
-                                        Toast.makeText(
-                                            context,
-                                            "Error al enviar mensaje",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                        messageText = textToSend // Restaurar el mensaje
-                                        isSending = false
-                                    }
-                                }
-                            }
                     ) {
-                        if (isSending) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = Color.White
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Send,
-                                contentDescription = "Enviar",
-                                tint = if (messageText.isNotBlank()) Color.White else Color(0xFF718096)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = "Enviar",
+                            tint = if (messageText.isNotBlank()) Color.White else Color(0xFF718096),
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NotificationBanner(
+    onActivateNotifications: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .wrapContentHeight(),
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFFF0F9FF),
+        border = BorderStroke(1.dp, Color(0xFFE0F2FE)),
+        shadowElevation = 6.dp,
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Notifications,
+                    contentDescription = "Notificaciones",
+                    tint = Color(0xFF0EA5E9),
+                    modifier = Modifier
+                        .size(32.dp)
+                        .padding(end = 12.dp)
+                )
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Notificaciones desactivadas",
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF0369A1),
+                        fontSize = 15.sp
+                    )
+                    Text(
+                        text = "Actívalas para recibir alertas de nuevos mensajes",
+                        color = Color(0xFF475569),
+                        fontSize = 13.sp,
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.End,
+                modifier = Modifier.padding(start = 12.dp)
+            ) {
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE2E8F0),
+                        contentColor = Color(0xFF475569)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(
+                        "Ahora no",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                Button(
+                    onClick = onActivateNotifications,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF0EA5E9),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(
+                        "Activar",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
@@ -417,13 +521,9 @@ fun MessageBubble(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = try {
-                            chatRepository.formatTimestamp(message.timestamp)
-                        } catch (e: Exception) {
-                            "Ahora"
-                        },
+                        text = chatRepository.formatTimestamp(message.timestamp),
                         fontSize = 11.sp,
-                        color = if (isCurrentUser) Color.White.copy(alpha = 0.8f) else Color.Gray
+                        color = if (isCurrentUser) Color.White.copy(alpha = 0.8f) else Color(0xFF718096)
                     )
 
                     if (isCurrentUser) {

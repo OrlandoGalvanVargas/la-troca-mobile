@@ -1,6 +1,7 @@
 package com.troca.latroca.ui.screens
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -21,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +33,7 @@ import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.troca.latroca.ui.viewmodels.AuthViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -39,15 +42,19 @@ import androidx.compose.ui.layout.ContentScale
 @Composable
 fun SettingsScreen(
     navController: NavController,
-    authViewModel: AuthViewModel,  // 👈 AGREGAR ESTO
-    onLogout: () -> Unit
+    authViewModel: AuthViewModel,
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+
     // 🆕 Observar perfil del usuario
     val userProfile by authViewModel.userProfile.collectAsState()
-    // 🔔 Estado de permisos de notificaciones
+
+    // 🔥 Estado para debounce del botón de regresar
+    var isBackButtonEnabled by remember { mutableStateOf(true) }
+
+// 🔔 Estado de permisos de notificaciones
     var hasNotificationPermission by remember {
         mutableStateOf(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -56,16 +63,42 @@ fun SettingsScreen(
                     Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED
             } else {
-                true // En versiones anteriores a Android 13, siempre están permitidas
+                true
             }
         )
     }
 
-    // Launcher para pedir permisos
+    var showPermissionRationale by remember { mutableStateOf(false) }
+    var showManualSettingsDialog by remember { mutableStateOf(false) }
+    var permissionRequestCount by remember { mutableIntStateOf(0) }
+
+    // Función para verificar si se debe mostrar rationale
+    fun shouldShowRequestPermissionRationale(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            (context as? Activity)?.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) ?: false
+        } else {
+            false
+        }
+    }
+    // Verificar estado actual de permisos cuando la pantalla se enfoca
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val currentlyGranted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (currentlyGranted != hasNotificationPermission) {
+                hasNotificationPermission = currentlyGranted
+            }
+        }
+    }
+// Launcher para pedir permisos MEJORADO
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasNotificationPermission = isGranted
+
         coroutineScope.launch {
             if (isGranted) {
                 Toast.makeText(
@@ -73,27 +106,72 @@ fun SettingsScreen(
                     "Notificaciones activadas",
                     Toast.LENGTH_SHORT
                 ).show()
+                permissionRequestCount = 0
+                showPermissionRationale = false
+                showManualSettingsDialog = false
             } else {
-                Toast.makeText(
-                    context,
-                    "Notificaciones desactivadas",
-                    Toast.LENGTH_SHORT
-                ).show()
+                permissionRequestCount++
+
+                // Verificar si fue denegado permanentemente
+                val shouldShowRationale = shouldShowRequestPermissionRationale()
+
+                if (!shouldShowRationale && permissionRequestCount >= 1) {
+                    // Denegado permanentemente - mostrar diálogo para configurar manualmente
+                    showManualSettingsDialog = true
+                    Toast.makeText(
+                        context,
+                        "Permiso denegado permanentemente. Activa en configuración",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else if (permissionRequestCount == 1) {
+                    // Primera denegada - mostrar explicación
+                    showPermissionRationale = true
+                    Toast.makeText(
+                        context,
+                        "Las notificaciones te ayudan a no perderte mensajes importantes",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    // Denegadas múltiples pero no permanente
+                    Toast.makeText(
+                        context,
+                        "Permiso denegado. Puedes intentar nuevamente",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }
     }
 
-    var showLogoutDialog by remember { mutableStateOf(false) }
+    // 🔥 Función para manejar el regreso con debounce
+    fun handleBackNavigation() {
+        if (isBackButtonEnabled) {
+            isBackButtonEnabled = false
+            navController.navigateUp()
+
+            coroutineScope.launch {
+                delay(500)
+                isBackButtonEnabled = true
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Configuración") },
+                title = { Text("Configuración", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
+                    IconButton(
+                        onClick = { handleBackNavigation() },
+                        enabled = isBackButtonEnabled
+                    ) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Volver"
+                            contentDescription = "Volver",
+                            tint = when {
+                                !isBackButtonEnabled -> Color(0xFFCBD5E0)
+                                else -> Color(0xFFE53935)
+                            }
                         )
                     }
                 },
@@ -129,7 +207,8 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .size(70.dp)
                                 .clip(CircleShape),
-                            contentScale = ContentScale.Crop)
+                            contentScale = ContentScale.Crop
+                        )
                     } else {
                         Box(
                             modifier = Modifier
@@ -171,45 +250,70 @@ fun SettingsScreen(
                 SettingsOption(
                     icon = Icons.Default.Person,
                     title = "Editar datos de cuenta",
+                    enabled = true,
                     onClick = {
-                        coroutineScope.launch {
-                            Toast.makeText(
-                                context,
-                                "Funcionalidad próximamente disponible",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                        navController.navigate("editProfile")
                     }
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 🔔 Notificaciones
+// 🔔 Notificaciones
             SettingsSection(title = "Preferencias") {
                 SettingsOptionWithSwitch(
                     icon = Icons.Default.Notifications,
                     title = "Notificaciones",
-                    subtitle = if (hasNotificationPermission) "Activadas" else "Desactivadas",
+                    subtitle = when {
+                        hasNotificationPermission -> "Activadas"
+                        showManualSettingsDialog -> "Activar en configuración"
+                        else -> "Desactivadas"
+                    },
                     isChecked = hasNotificationPermission,
+                    enabled = true,
                     onCheckedChange = { isEnabled ->
                         if (isEnabled) {
-                            // Activar notificaciones
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                when {
+                                    hasNotificationPermission -> {
+                                        // Ya está activado, no hacer nada
+                                    }
+                                    showManualSettingsDialog -> {
+                                        // Denegado permanentemente - abrir configuración
+                                        showManualSettingsDialog = true
+                                    }
+                                    showPermissionRationale -> {
+                                        // Mostrar explicación antes de pedir permiso
+                                        showPermissionRationale = true
+                                    }
+                                    else -> {
+                                        // Pedir permiso normalmente
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                }
                             }
                         } else {
-                            // Desactivar notificaciones (ir a configuración del sistema)
+                            // Cuando quieren desactivar, dirigir a configuración del sistema
                             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                                 data = Uri.fromParts("package", context.packageName, null)
                             }
-                            context.startActivity(intent)
-                            coroutineScope.launch {
-                                Toast.makeText(
-                                    context,
-                                    "Desactiva las notificaciones en la configuración del sistema",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                            try {
+                                context.startActivity(intent)
+                                coroutineScope.launch {
+                                    Toast.makeText(
+                                        context,
+                                        "Desactiva las notificaciones en la configuración del sistema",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            } catch (e: Exception) {
+                                coroutineScope.launch {
+                                    Toast.makeText(
+                                        context,
+                                        "Abre Configuración > Aplicaciones > La Troca > Notificaciones",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
                             }
                         }
                     }
@@ -223,21 +327,20 @@ fun SettingsScreen(
                 SettingsOption(
                     icon = Icons.Default.Info,
                     title = "Ver términos y políticas",
+                    enabled = true,
                     onClick = {
-                        navController.navigate("termsAndPolicies") // 👈 Nueva navegación
+                        navController.navigate("termsAndPolicies")
                     }
                 )
-                // 🆕 AGREGAR AYUDA
                 SettingsOption(
-                    icon = Icons.Default.Help,  // 👈 Icono de ayuda
+                    icon = Icons.Default.Help,
                     title = "Ayuda",
+                    enabled = true,
                     onClick = {
                         navController.navigate("help")
                     }
                 )
             }
-
-
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -249,72 +352,94 @@ fun SettingsScreen(
                     subtitle = "Esta acción es irreversible",
                     iconTint = Color(0xFFE53E3E),
                     textColor = Color(0xFFE53E3E),
+                    enabled = true,
                     onClick = {
-                        // 👇 Navegar a pantalla de confirmación
                         navController.navigate("deleteAccount")
                     }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 🚪 Cerrar sesión
-            Button(
-                onClick = { showLogoutDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFE53E3E)
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ExitToApp,
-                    contentDescription = "Cerrar sesión",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Cerrar sesión",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
                 )
             }
 
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
-
-    // 🔔 Diálogo de confirmación de logout
-    if (showLogoutDialog) {
+// Diálogo de explicación para primera denegada
+    if (showPermissionRationale) {
         AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
+            onDismissRequest = { showPermissionRationale = false },
             title = {
-                Text(
-                    text = "¿Cerrar sesión?",
-                    fontWeight = FontWeight.Bold
-                )
+                Text("¿Por qué necesitamos notificaciones?", fontWeight = FontWeight.Bold)
             },
             text = {
-                Text("¿Estás seguro de que quieres cerrar sesión?")
+                Column {
+                    Text("Las notificaciones te ayudan a:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("• Recibir mensajes de chat al instante")
+                    Text("• Saber cuando alguien quiere hacer trueque")
+                    Text("• Mantenerte informado de nuevas ofertas")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("No enviamos spam ni publicidad no deseada.")
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        showLogoutDialog = false
-                        onLogout()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE53E3E)
-                    )
+                        showPermissionRationale = false
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
                 ) {
-                    Text("Cerrar sesión")
+                    Text("Entendido, permitir")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Cancelar", color = Color(0xFF718096))
+                TextButton(onClick = { showPermissionRationale = false }) {
+                    Text("Ahora no")
+                }
+            }
+        )
+    }
+
+// Diálogo para configuración manual
+    if (showManualSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showManualSettingsDialog = false },
+            title = {
+                Text("Activar notificaciones manualmente", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    Text("Has denegado los permisos permanentemente. Para activarlos:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("1. Ve a Configuración del dispositivo")
+                    Text("2. Busca 'Aplicaciones' o 'Apps'")
+                    Text("3. Encuentra 'La Troca'")
+                    Text("4. Toca 'Notificaciones'")
+                    Text("5. Activa 'Permitir notificaciones'")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showManualSettingsDialog = false
+                        try {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(
+                                context,
+                                "Abre Configuración > Aplicaciones > La Troca > Notificaciones",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                ) {
+                    Text("Abrir Configuración")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showManualSettingsDialog = false }) {
+                    Text("Cancelar")
                 }
             }
         )
@@ -349,19 +474,23 @@ fun SettingsOption(
     subtitle: String? = null,
     iconTint: Color = Color(0xFF2D3748),
     textColor: Color = Color(0xFF2D3748),
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp)
+            .then(
+                if (!enabled) Modifier.alpha(0.5f) else Modifier
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = title,
-            tint = iconTint,
+            tint = if (enabled) iconTint else Color(0xFFCBD5E0),
             modifier = Modifier.size(24.dp)
         )
 
@@ -371,7 +500,7 @@ fun SettingsOption(
             Text(
                 text = title,
                 fontSize = 16.sp,
-                color = textColor,
+                color = if (enabled) textColor else Color(0xFF718096),
                 fontWeight = FontWeight.Medium
             )
             if (subtitle != null) {
@@ -386,7 +515,7 @@ fun SettingsOption(
         Icon(
             imageVector = Icons.Default.KeyboardArrowRight,
             contentDescription = "Ir",
-            tint = Color(0xFF718096)
+            tint = if (enabled) Color(0xFF718096) else Color(0xFFCBD5E0)
         )
     }
 }
@@ -397,18 +526,22 @@ fun SettingsOptionWithSwitch(
     title: String,
     subtitle: String? = null,
     isChecked: Boolean,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .then(
+                if (!enabled) Modifier.alpha(0.5f) else Modifier
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = title,
-            tint = Color(0xFF2D3748),
+            tint = if (enabled) Color(0xFF2D3748) else Color(0xFFCBD5E0),
             modifier = Modifier.size(24.dp)
         )
 
@@ -418,7 +551,7 @@ fun SettingsOptionWithSwitch(
             Text(
                 text = title,
                 fontSize = 16.sp,
-                color = Color(0xFF2D3748),
+                color = if (enabled) Color(0xFF2D3748) else Color(0xFF718096),
                 fontWeight = FontWeight.Medium
             )
             if (subtitle != null) {
@@ -433,11 +566,16 @@ fun SettingsOptionWithSwitch(
         Switch(
             checked = isChecked,
             onCheckedChange = onCheckedChange,
+            enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
                 checkedTrackColor = Color(0xFF4CAF50),
                 uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = Color(0xFFE2E8F0)
+                uncheckedTrackColor = Color(0xFFE2E8F0),
+                disabledCheckedThumbColor = Color.White,
+                disabledCheckedTrackColor = Color(0xFFE2E8F0),
+                disabledUncheckedThumbColor = Color.White,
+                disabledUncheckedTrackColor = Color(0xFFE2E8F0)
             )
         )
     }

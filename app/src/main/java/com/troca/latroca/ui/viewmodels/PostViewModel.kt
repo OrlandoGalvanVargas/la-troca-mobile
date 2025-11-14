@@ -2,6 +2,7 @@ package com.troca.latroca.ui.viewmodels
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.troca.latroca.data.models.PostItem
@@ -9,6 +10,8 @@ import com.troca.latroca.data.repository.PostRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 
 class PostViewModel(
     private val postRepository: PostRepository
@@ -26,20 +29,58 @@ class PostViewModel(
     fun loadPosts(token: String) {
         if (token.isBlank()) {
             _error.value = "Token inválido o vacío"
+            Log.w("PostViewModel", "⚠️ Intento de cargar posts sin token")
             return
         }
+
         viewModelScope.launch {
             try {
                 _isLoading.value = true
-                val result = postRepository.getAllPosts(token)
-                _posts.value = result
                 _error.value = null
+
+                Log.d("PostViewModel", "🔄 Cargando publicaciones...")
+                val result = postRepository.getAllPosts(token)
+
+                _posts.value = result
+                Log.d("PostViewModel", "✅ ${result.size} publicaciones cargadas correctamente")
+
+            } catch (e: UnknownHostException) {
+                _error.value = "Sin conexión a internet. Verifica tu conexión."
+                Log.e("PostViewModel", "❌ Error de conexión: No hay internet", e)
+
+            } catch (e: SocketTimeoutException) {
+                _error.value = "Tiempo de espera agotado. Intenta de nuevo."
+                Log.e("PostViewModel", "❌ Error: Timeout al cargar posts", e)
+
             } catch (e: Exception) {
-                _error.value = e.message ?: "Error desconocido al cargar publicaciones"
+                val errorMessage = when {
+                    e.message?.contains("401") == true ->
+                        "Sesión expirada. Inicia sesión nuevamente."
+                    e.message?.contains("403") == true ->
+                        "No tienes permisos para ver publicaciones."
+                    e.message?.contains("404") == true ->
+                        "Servicio no encontrado. Contacta soporte."
+                    e.message?.contains("500") == true ->
+                        "Error en el servidor. Intenta más tarde."
+                    e.message?.contains("Unable to resolve host") == true ->
+                        "No se puede conectar al servidor."
+                    else ->
+                        "Error al cargar publicaciones: ${e.message ?: "Error desconocido"}"
+                }
+                _error.value = errorMessage
+                Log.e("PostViewModel", "❌ Error cargando publicaciones: ${e.message}", e)
+
             } finally {
                 _isLoading.value = false
             }
         }
+    }
+
+    fun clearPosts() {
+        _posts.value = emptyList()
+        _error.value = null
+        _isLoading.value = false
+        Log.d("PostViewModel", "🧹 Posts limpiados")
     }
 
     fun createPostWithImage(
@@ -115,7 +156,7 @@ class PostViewModel(
                     newImageUri = newImageUri
                 )
 
-                if (result) {
+                if (result.isSuccess) {
                     _posts.value = _posts.value.map {
                         if (it.id == postId) it.copy(
                             titulo = titulo,
@@ -131,7 +172,7 @@ class PostViewModel(
                     }
                     onSuccess()
                 } else {
-                    onError("Error al actualizar publicación")
+                    onError(result.exceptionOrNull()?.message ?: "Error al actualizar publicación")
                 }
             } catch (e: Exception) {
                 onError("Error: ${e.message ?: "Error desconocido"}")
@@ -139,16 +180,20 @@ class PostViewModel(
         }
     }
 
-    fun deletePost(token: String, id: String) {
+    fun deletePost(token: String, postId: String, chatViewModel: ChatViewModel? = null) {
         if (token.isBlank()) {
             _error.value = "Token inválido o vacío"
             return
         }
         viewModelScope.launch {
             try {
-                val result = postRepository.deletePost(token, id)
+                val result = postRepository.deletePost(token, postId)
                 if (result) {
-                    _posts.value = _posts.value.filterNot { it.id == id }
+                    _posts.value = _posts.value.filterNot { it.id == postId }
+
+                    chatViewModel?.deleteChatsForPost(postId) {
+                        Log.d("PostViewModel", "Chats del post eliminados: $postId")
+                    }
                 }
             } catch (e: Exception) {
                 _error.value = e.message ?: "Error desconocido al eliminar publicación"
@@ -156,14 +201,7 @@ class PostViewModel(
         }
     }
 
-    // 🆕 Función para limpiar posts
-    fun clearPosts() {
-        _posts.value = emptyList()
-    }
 
-    suspend fun analyzeText(token: String, text: String): Pair<Boolean, String> {
-        return postRepository.analyzeText(token, text)
-    }
 
     suspend fun analyzeImage(context: Context, token: String, imageUri: Uri): Pair<Boolean, String> {
         return postRepository.analyzeImage(context, token, imageUri)

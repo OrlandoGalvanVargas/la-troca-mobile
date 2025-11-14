@@ -25,7 +25,6 @@ class RegistrationViewModel(private val authRepository: AuthRepository, private 
     private val _uiState = MutableStateFlow<AuthResult<String>>(AuthResult.Idle)
     val uiState: StateFlow<AuthResult<String>> = _uiState.asStateFlow()
 
-    // Guardar datos del paso 1 (registro)
     fun updateStep1Data(nombre: String, email: String, password: String) {
         _registrationData.value = _registrationData.value.copy(
             nombre = nombre,
@@ -34,7 +33,6 @@ class RegistrationViewModel(private val authRepository: AuthRepository, private 
         )
     }
 
-    // Guardar datos del paso 2 (perfil)
     fun updateStep2Data(bio: String, ubicacionManual: String, lat: Double, lon: Double, imageUri: Uri?) {
         _registrationData.value = _registrationData.value.copy(
             bio = bio,
@@ -64,7 +62,6 @@ class RegistrationViewModel(private val authRepository: AuthRepository, private 
         viewModelScope.launch {
             try {
                 val imageFile = data.imageUri?.let { uri ->
-                    // Verificar si es una URL de internet (Google) o una URI local
                     if (uri.toString().startsWith("http://") || uri.toString().startsWith("https://")) {
                         downloadImageFromUrl(uri.toString(), context)
                     } else {
@@ -72,7 +69,6 @@ class RegistrationViewModel(private val authRepository: AuthRepository, private 
                     }
                 }
 
-                // 1️⃣ Registrar en el backend
                 val registerResult = authRepository.register(
                     nombre = data.nombre,
                     email = data.email,
@@ -84,17 +80,13 @@ class RegistrationViewModel(private val authRepository: AuthRepository, private 
                     imageFile = imageFile
                 )
 
-                // 2️⃣ Si el registro fue exitoso, hacer login automático para obtener el token
                 if (registerResult is AuthResult.Success) {
                     Log.d("RegistrationVM", "Registro exitoso, iniciando login automático...")
 
-                    // 🔑 Usar AuthViewModel.login() para que guarde el token correctamente
                     authViewModel.login(data.email, data.password)
 
-                    // Esperar un poco a que se complete el login
                     delay(1500)
 
-                    // Verificar si el token se guardó
                     val token = authViewModel.getToken()
                     if (token != null) {
                         Log.d("RegistrationVM", "Token obtenido exitosamente")
@@ -113,7 +105,6 @@ class RegistrationViewModel(private val authRepository: AuthRepository, private 
         }
     }
 
-    // 🆕 Nueva función para descargar imagen de URL (Google)
     private suspend fun downloadImageFromUrl(imageUrl: String, context: android.content.Context): File? = withContext(Dispatchers.IO) {
         try {
             Log.d("RegistrationVM", "Descargando imagen de Google: $imageUrl")

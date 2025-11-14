@@ -1,13 +1,11 @@
 package com.troca.latroca.ui.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Chat
@@ -23,9 +21,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import coil.compose.rememberAsyncImagePainter
 import com.troca.latroca.ui.viewmodels.AuthViewModel
 import com.troca.latroca.ui.viewmodels.ChatViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,22 +36,22 @@ fun ChatListScreen(
     val currentUserId = authViewModel.getUserId()
     val chats by chatViewModel.userChats.collectAsState()
     val isLoading by chatViewModel.isLoading.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
 
-    // Escuchar lista de chats
-    LaunchedEffect(currentUserId) {
-        if (currentUserId.isNotEmpty()) {
-            chatViewModel.listenToUserChats(currentUserId)
-        }
-    }
-
-    // Limpiar listeners al salir
-    DisposableEffect(Unit) {
-        onDispose {
-            chatViewModel.stopListeners()
-        }
-    }
+    var isBackButtonEnabled by remember { mutableStateOf(true) }
 
     val chatListItems = chatViewModel.getChatListItems(chats, currentUserId)
+
+    fun handleBackNavigation() {
+        if (isBackButtonEnabled) {
+            isBackButtonEnabled = false
+            navController.popBackStack()
+            coroutineScope.launch {
+                delay(500)
+                isBackButtonEnabled = true
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -64,11 +63,14 @@ fun ChatListScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(
+                        onClick = { handleBackNavigation() },
+                        enabled = isBackButtonEnabled
+                    ) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Volver",
-                            tint = Color(0xFFE53935)
+                            tint = if (isBackButtonEnabled) Color(0xFFE53935) else Color(0xFFCBD5E0)
                         )
                     }
                 },
@@ -169,7 +171,6 @@ fun ChatListItem(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar del usuario
             Box(
                 modifier = Modifier
                     .size(56.dp)
@@ -187,7 +188,6 @@ fun ChatListItem(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Información del chat
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -215,7 +215,6 @@ fun ChatListItem(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Título del post
                 Text(
                     text = "📦 ${chatItem.postTitle}",
                     fontSize = 13.sp,

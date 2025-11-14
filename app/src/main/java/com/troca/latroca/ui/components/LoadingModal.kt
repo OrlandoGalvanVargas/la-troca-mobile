@@ -1,14 +1,12 @@
 package com.troca.latroca.ui.components
 
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,17 +16,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
 
-/**
- * Modal de carga reutilizable que bloquea la interacción con la pantalla
- * @param isVisible Controla si el modal es visible
- * @param message Mensaje a mostrar (opcional)
- */
 @Composable
 fun LoadingModal(
     isVisible: Boolean,
-    message: String = "Cargando..."
+    message: String = "Cargando...",
+    timeoutSeconds: Int = 10
 ) {
+    var showTimeoutMessage by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isVisible) {
+        if (isVisible) {
+            showTimeoutMessage = false
+            // Esperar el tiempo especificado
+            delay(timeoutSeconds * 1000L)
+            showTimeoutMessage = true
+        } else {
+            showTimeoutMessage = false
+        }
+    }
+
     if (isVisible) {
         Dialog(
             onDismissRequest = { /* No permite cerrar tocando fuera */ },
@@ -38,54 +46,55 @@ fun LoadingModal(
                 usePlatformDefaultWidth = false
             )
         ) {
-            // Fondo semi-transparente que cubre toda la pantalla
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f)),
+                    .background(Color.Black.copy(alpha = 0.6f)),
                 contentAlignment = Alignment.Center
             ) {
-                // Tarjeta con el contenido del loading
                 Surface(
                     modifier = Modifier
                         .wrapContentSize()
-                        .padding(32.dp),
-                    shape = RoundedCornerShape(16.dp),
+                        .padding(horizontal = 40.dp),
+                    shape = RoundedCornerShape(20.dp),
                     color = Color.White,
-                    shadowElevation = 8.dp
+                    shadowElevation = 12.dp
                 ) {
                     Column(
-                        modifier = Modifier.padding(32.dp),
+                        modifier = Modifier
+                            .padding(horizontal = 36.dp, vertical = 32.dp)
+                            .widthIn(min = 200.dp, max = 280.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        // Animación del CircularProgressIndicator
-                        val infiniteTransition = rememberInfiniteTransition(label = "loading")
-                        val rotation by infiniteTransition.animateFloat(
-                            initialValue = 0f,
-                            targetValue = 360f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(1000, easing = LinearEasing),
-                                repeatMode = RepeatMode.Restart
-                            ),
-                            label = "rotation"
-                        )
-
                         CircularProgressIndicator(
-                            modifier = Modifier.size(48.dp),
+                            modifier = Modifier.size(56.dp),
                             color = Color(0xFFE53E3E),
-                            strokeWidth = 4.dp
+                            strokeWidth = 5.dp
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         Text(
                             text = message,
                             fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.SemiBold,
                             color = Color(0xFF2D3748),
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            lineHeight = 22.sp
                         )
+
+                        if (showTimeoutMessage) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Esto puede tomar algo de tiempo...",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = Color(0xFF718096),
+                                textAlign = TextAlign.Center,
+                                lineHeight = 18.sp
+                            )
+                        }
                     }
                 }
             }

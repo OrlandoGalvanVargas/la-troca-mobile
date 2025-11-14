@@ -43,8 +43,6 @@ interface PostApi {
         @Part Fotos: List<MultipartBody.Part>?
     ): Response<ResponseBody>
 
-
-
     @DELETE("api/Post/{id}")
     suspend fun deletePost(
         @Header("Authorization") token: String,
@@ -56,11 +54,5 @@ interface PostApi {
     suspend fun analyzeImage(
         @Header("Authorization") token: String,
         @Part file: MultipartBody.Part
-    ): Response<ResponseBody>
-
-    @POST("api/TextModeration/AnalizarTexto")
-    suspend fun analyzeText(
-        @Header("Authorization") token: String,
-        @Body body: okhttp3.RequestBody
     ): Response<ResponseBody>
 }

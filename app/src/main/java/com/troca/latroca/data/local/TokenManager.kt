@@ -1,9 +1,10 @@
-package com.example.latroca.data.local
+package com.troca.latroca.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import androidx.core.content.edit
 
 class TokenManager(context: Context) {
 
@@ -19,32 +20,32 @@ class TokenManager(context: Context) {
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
 
+    private val ROLE_KEY = "user_role"
+
+    fun saveRole(role: String) {
+        sharedPreferences.edit { putString(ROLE_KEY, role) }
+    }
+
+    fun getRole(): String? {
+        return sharedPreferences.getString(ROLE_KEY, null)
+    }
+
+    fun clearAll() {
+        sharedPreferences.edit {
+            remove(KEY_TOKEN)
+                .remove(ROLE_KEY)  // 👈 AGREGAR ESTO
+        }
+    }
+
     companion object {
         private const val KEY_TOKEN = "auth_token"
-        private const val KEY_USER_ID = "user_id"
     }
 
     fun saveToken(token: String) {
-        sharedPreferences.edit().putString(KEY_TOKEN, token).apply()
+        sharedPreferences.edit { putString(KEY_TOKEN, token) }
     }
 
     fun getToken(): String? {
         return sharedPreferences.getString(KEY_TOKEN, null)
-    }
-
-    fun saveUserId(userId: String) {
-        sharedPreferences.edit().putString(KEY_USER_ID, userId).apply()
-    }
-
-    fun getUserId(): String? {
-        return sharedPreferences.getString(KEY_USER_ID, null)
-    }
-
-    fun clearAll() {
-        sharedPreferences.edit().clear().apply()
-    }
-
-    fun hasToken(): Boolean {
-        return getToken() != null
     }
 }

@@ -48,13 +48,10 @@ fun SettingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    // 🆕 Observar perfil del usuario
     val userProfile by authViewModel.userProfile.collectAsState()
 
-    // 🔥 Estado para debounce del botón de regresar
     var isBackButtonEnabled by remember { mutableStateOf(true) }
 
-// 🔔 Estado de permisos de notificaciones
     var hasNotificationPermission by remember {
         mutableStateOf(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -72,7 +69,6 @@ fun SettingsScreen(
     var showManualSettingsDialog by remember { mutableStateOf(false) }
     var permissionRequestCount by remember { mutableIntStateOf(0) }
 
-    // Función para verificar si se debe mostrar rationale
     fun shouldShowRequestPermissionRationale(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             (context as? Activity)?.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) ?: false
@@ -80,7 +76,6 @@ fun SettingsScreen(
             false
         }
     }
-    // Verificar estado actual de permisos cuando la pantalla se enfoca
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val currentlyGranted = ContextCompat.checkSelfPermission(
@@ -93,7 +88,6 @@ fun SettingsScreen(
             }
         }
     }
-// Launcher para pedir permisos MEJORADO
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -112,11 +106,9 @@ fun SettingsScreen(
             } else {
                 permissionRequestCount++
 
-                // Verificar si fue denegado permanentemente
                 val shouldShowRationale = shouldShowRequestPermissionRationale()
 
                 if (!shouldShowRationale && permissionRequestCount >= 1) {
-                    // Denegado permanentemente - mostrar diálogo para configurar manualmente
                     showManualSettingsDialog = true
                     Toast.makeText(
                         context,
@@ -124,7 +116,6 @@ fun SettingsScreen(
                         Toast.LENGTH_LONG
                     ).show()
                 } else if (permissionRequestCount == 1) {
-                    // Primera denegada - mostrar explicación
                     showPermissionRationale = true
                     Toast.makeText(
                         context,
@@ -132,7 +123,6 @@ fun SettingsScreen(
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
-                    // Denegadas múltiples pero no permanente
                     Toast.makeText(
                         context,
                         "Permiso denegado. Puedes intentar nuevamente",
@@ -143,7 +133,6 @@ fun SettingsScreen(
         }
     }
 
-    // 🔥 Función para manejar el regreso con debounce
     fun handleBackNavigation() {
         if (isBackButtonEnabled) {
             isBackButtonEnabled = false
@@ -189,7 +178,6 @@ fun SettingsScreen(
                 .background(Color(0xFFF7FAFC))
                 .verticalScroll(rememberScrollState())
         ) {
-            // 👤 Sección de perfil
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -199,7 +187,6 @@ fun SettingsScreen(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 🆕 Mostrar foto de perfil real o placeholder
                     if (!userProfile?.profilePicUrl.isNullOrBlank()) {
                         AsyncImage(
                             model = userProfile?.profilePicUrl,
@@ -245,7 +232,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 📋 Opciones de configuración
             SettingsSection(title = "Cuenta") {
                 SettingsOption(
                     icon = Icons.Default.Person,
@@ -259,7 +245,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-// 🔔 Notificaciones
             SettingsSection(title = "Preferencias") {
                 SettingsOptionWithSwitch(
                     icon = Icons.Default.Notifications,
@@ -276,24 +261,19 @@ fun SettingsScreen(
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                 when {
                                     hasNotificationPermission -> {
-                                        // Ya está activado, no hacer nada
                                     }
                                     showManualSettingsDialog -> {
-                                        // Denegado permanentemente - abrir configuración
                                         showManualSettingsDialog = true
                                     }
                                     showPermissionRationale -> {
-                                        // Mostrar explicación antes de pedir permiso
                                         showPermissionRationale = true
                                     }
                                     else -> {
-                                        // Pedir permiso normalmente
                                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                     }
                                 }
                             }
                         } else {
-                            // Cuando quieren desactivar, dirigir a configuración del sistema
                             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                                 data = Uri.fromParts("package", context.packageName, null)
                             }
@@ -322,7 +302,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 📜 Legal
             SettingsSection(title = "Legal") {
                 SettingsOption(
                     icon = Icons.Default.Info,
@@ -344,7 +323,6 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ⚠️ Zona peligrosa
             SettingsSection(title = "Zona de peligro") {
                 SettingsOption(
                     icon = Icons.Default.Delete,
@@ -362,7 +340,6 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
-// Diálogo de explicación para primera denegada
     if (showPermissionRationale) {
         AlertDialog(
             onDismissRequest = { showPermissionRationale = false },
@@ -398,7 +375,6 @@ fun SettingsScreen(
         )
     }
 
-// Diálogo para configuración manual
     if (showManualSettingsDialog) {
         AlertDialog(
             onDismissRequest = { showManualSettingsDialog = false },

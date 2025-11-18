@@ -35,48 +35,39 @@ import com.troca.latroca.ui.viewmodels.RegistrationViewModel
 import com.troca.latroca.utils.validatePasswordInput
 import kotlinx.coroutines.launch
 
-// 🔥 MODIFICADO: Nueva función para formatear el nombre con las restricciones
 private fun formatNombreText(currentText: String, newText: String): String {
     if (newText.isEmpty()) return ""
 
-    // Si el texto nuevo es más corto que el actual, es una eliminación, permitir
     if (newText.length < currentText.length) {
         return newText
     }
 
-    // 🔥 NUEVO: Limitar a máximo 30 caracteres
     if (newText.length > 30) {
         return currentText
     }
 
-    // Verificar si el texto está vacío o solo tiene espacios
     val hasContent = currentText.any { it != ' ' }
 
-    // 🔥 NUEVO: No permitir espacios al inicio si no hay contenido
     if (!hasContent) {
         if (newText.first().isWhitespace()) {
             return ""
         }
     }
 
-    // Construir el texto formateado caracter por caracter
     val result = StringBuilder()
     var spaceCount = 0
 
     for (char in newText) {
         when {
-            // 🔥 NUEVO: No permitir espacios al inicio
             result.isEmpty() && char.isWhitespace() -> {
                 continue
             }
-            // 🔥 NUEVO: No permitir más de 2 espacios consecutivos
             char == ' ' -> {
                 spaceCount++
                 if (spaceCount <= 1) {
                     result.append(char)
                 }
             }
-            // 🔥 NUEVO: Resetear contador de espacios cuando se escribe un caracter
             else -> {
                 spaceCount = 0
                 result.append(char)
@@ -87,21 +78,17 @@ private fun formatNombreText(currentText: String, newText: String): String {
     return result.toString()
 }
 
-// 🔥 MODIFICADO: Nueva función para formatear el correo con las restricciones
 private fun formatEmailText(currentText: String, newText: String): String {
     if (newText.isEmpty()) return ""
 
-    // Si el texto nuevo es más corto que el actual, es una eliminación, permitir
     if (newText.length < currentText.length) {
         return newText
     }
 
-    // 🔥 NUEVO: Limitar a máximo 35 caracteres
     if (newText.length > 35) {
         return currentText
     }
 
-    // 🔥 NUEVO: No permitir espacios en el correo
     if (newText.any { it.isWhitespace() }) {
         return currentText
     }
@@ -109,12 +96,11 @@ private fun formatEmailText(currentText: String, newText: String): String {
     return newText
 }
 
-// 🔥 MODIFICADO: Función de validación de nombre actualizada - VALIDACIONES SIMPLIFICADAS
 private fun validateNombreRealTime(nombre: String): String {
     if (nombre.isBlank()) return ""
 
     return when {
-        nombre.length < 3 -> "Mínimo 3 caracteres" // 🔥 MODIFICADO: Cambiado de 2 a 3 caracteres
+        nombre.length < 3 -> "Mínimo 3 caracteres"
         nombre.length > 30 -> "Máximo 30 caracteres"
         nombre.any { it.isDigit() } -> "No puede contener números"
         nombre.contains(Regex(".*\\d.*")) -> "No puede contener números"
@@ -123,12 +109,11 @@ private fun validateNombreRealTime(nombre: String): String {
     }
 }
 
-// 🔥 MODIFICADO: Función de validación de email actualizada
 private fun validateEmailRealTime(email: String): String {
     if (email.isBlank()) return ""
 
     return when {
-        email.contains(" ") -> "No se permiten espacios en el correo" // 🔥 Ya no debería ocurrir por el formateo
+        email.contains(" ") -> "No se permiten espacios en el correo"
         email.startsWith(".") -> "No puede empezar con punto"
         email.endsWith(".") -> "No puede terminar con punto"
         email.contains("..") -> "No se permiten puntos consecutivos"
@@ -137,7 +122,7 @@ private fun validateEmailRealTime(email: String): String {
         email.split("@")[0].isEmpty() -> "Falta la parte antes del @"
         email.split("@")[1].isEmpty() -> "Falta el dominio después del @"
         email.split("@")[0].length > 30 -> "Máximo 30 caracteres antes del @"
-        email.length > 35 -> "Máximo 35 caracteres en total" // 🔥 ACTUALIZADO: 35 caracteres
+        email.length > 35 -> "Máximo 35 caracteres en total"
         email.contains("@") && !isValidEmailDomain(email.split("@")[1]) -> "Dominio de correo no válido"
         else -> ""
     }
@@ -171,12 +156,9 @@ private fun isValidEmailDomain(domain: String): Boolean {
     return allowedDomains.any { domain.equals(it, ignoreCase = true) }
 }
 
-// 🔥 NUEVO: Constantes para espaciado responsive
 private object RegisterScreenDimens {
-    // Espaciados base que se ajustan al tamaño de pantalla
     val horizontalPadding: Dp
         @Composable get() = with(LocalDensity.current) {
-            // Ajusta el padding según el tamaño de pantalla
             if (LocalDensity.current.density > 2.5f) 28.dp else 24.dp
         }
 
@@ -212,7 +194,6 @@ fun RegisterScreen(
 ) {
     val context = LocalContext.current
 
-    // 🔥 OPTIMIZADO: Estados agrupados para mejor rendimiento
     var nombre by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -236,7 +217,6 @@ fun RegisterScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    // 🔥 OPTIMIZADO: DerivedStateOf para validación eficiente
     val isFormValid by remember(
         nombre, email, password, confirmPassword,
         nombreError, emailError, passwordError, confirmPasswordError, acceptTerms
@@ -254,7 +234,6 @@ fun RegisterScreen(
         }
     }
 
-    // 🔥 MODIFICADO: Funciones de manejo actualizadas con formateo
     fun handleNombreChange(newNombre: String) {
         val formattedNombre = formatNombreText(nombre, newNombre)
         if (formattedNombre != nombre) {
@@ -277,7 +256,6 @@ fun RegisterScreen(
         }
     }
     fun handlePasswordChange(newPassword: String) {
-        // 🔥 MODIFICADO: Usar la función utilitaria que elimina espacios
         val filteredPassword = validatePasswordInput(password, newPassword)
         if (filteredPassword != password) {
             password = filteredPassword
@@ -292,7 +270,6 @@ fun RegisterScreen(
     }
 
     fun handleConfirmPasswordChange(newConfirmPassword: String) {
-        // 🔥 MODIFICADO: Usar la función utilitaria que elimina espacios
         val filteredConfirmPassword = validatePasswordInput(confirmPassword, newConfirmPassword)
         if (filteredConfirmPassword != confirmPassword) {
             confirmPassword = filteredConfirmPassword
@@ -303,10 +280,10 @@ fun RegisterScreen(
         }
     }
 
-    // 🚀 Modal de carga
     LoadingModal(
         isVisible = isLoading,
-        message = "Creando tu cuenta..."
+        message = "Creando tu cuenta...",
+        timeoutSeconds = 5
     )
 
     Column(
@@ -318,7 +295,6 @@ fun RegisterScreen(
     ) {
         Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingXLarge))
 
-        // 🔥 OPTIMIZADO: Logo con tamaño responsive
         Image(
             painter = painterResource(id = R.drawable.la_troca_logo),
             contentDescription = "Logo La Troca",
@@ -327,7 +303,6 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingLarge))
 
-        // Títulos
         Text(
             text = "Crear cuenta",
             fontWeight = FontWeight.Bold,
@@ -345,12 +320,10 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingXLarge))
 
-        // 🔥 OPTIMIZADO: Campos del formulario con espaciado consistente
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(RegisterScreenDimens.verticalSpacingMedium)
         ) {
-            // NOMBRE COMPLETO
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -400,7 +373,6 @@ fun RegisterScreen(
                 }
             }
 
-            // CORREO
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -451,7 +423,6 @@ fun RegisterScreen(
                 }
             }
 
-            // CONTRASEÑA
             Column {
                 Text(
                     text = "Contraseña",
@@ -509,7 +480,6 @@ fun RegisterScreen(
                 }
             }
 
-            // CONFIRMAR CONTRASEÑA
             Column {
                 Text(
                     text = "Confirmar Contraseña",
@@ -570,7 +540,6 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingLarge))
 
-        // TÉRMINOS Y CONDICIONES
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -587,14 +556,11 @@ fun RegisterScreen(
                 )
             )
 
-            // 🔥 OPTIMIZADO: Textos de términos en composable reutilizable
             TermsAndPrivacyText(isLoading = isLoading)
         }
 
-        // BOTÓN REGISTRARSE
         Button(
             onClick = {
-                // Validar todos los campos
                 nombreTouched = true
                 emailTouched = true
                 passwordTouched = true
@@ -645,7 +611,6 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(RegisterScreenDimens.verticalSpacingMedium))
 
-        // YA TIENES CUENTA
         Row(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
@@ -686,7 +651,6 @@ fun RegisterScreen(
     }
 }
 
-// 🔥 NUEVO: Composable reutilizable para términos y privacidad
 @Composable
 private fun TermsAndPrivacyText(isLoading: Boolean) {
     val context = LocalContext.current

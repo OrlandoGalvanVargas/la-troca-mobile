@@ -51,7 +51,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-// 🔥 Funciones de formateo
 private fun formatTituloText(currentText: String, newText: String): String {
     if (newText.isEmpty()) return ""
     if (newText.length < currentText.length) return newText
@@ -156,7 +155,6 @@ fun PublicationDetailScreen(
     var showSuccess by remember { mutableStateOf(false) }
     var lastAction by remember { mutableStateOf("") }
     var isUpdating by remember { mutableStateOf(false) }
-    // 🔥 NUEVO: Estado para el visor de imagen completa
     var showFullScreenImage by remember { mutableStateOf(false) }
     var titulo by remember { mutableStateOf(post?.titulo ?: "") }
     var descripcion by remember { mutableStateOf(post?.descripcion ?: "") }
@@ -165,7 +163,6 @@ fun PublicationDetailScreen(
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var showImagePicker by remember { mutableStateOf(false) }
 
-    // 🔥 SOLO validación IA para imagen
     var imagenSegura by remember { mutableStateOf<Boolean?>(true) }
     var isValidatingImage by remember { mutableStateOf(false) }
 
@@ -205,7 +202,6 @@ fun PublicationDetailScreen(
         }
     }
 
-    // 🔥 SOLO validación IA para la imagen
     LaunchedEffect(selectedImageUri) {
         if (isEditing && selectedImageUri != null) {
             isValidatingImage = true
@@ -220,15 +216,13 @@ fun PublicationDetailScreen(
             delay(750)
             showSuccess = false
             if (lastAction == "eliminar") {
-                navController.popBackStack()  // 🔥 CAMBIAR navigate("home") por popBackStack()
+                navController.popBackStack()
             } else if (lastAction == "actualizar") {
-                // 🔥 Regresar a la vista anterior después de actualizar
                 navController.popBackStack()
             }
         }
     }
 
-    // 🔥 Validaciones: solo campos completos y imagen segura
     val isFormComplete = titulo.isNotBlank() &&
             descripcion.isNotBlank() &&
             necesidad.isNotBlank() &&
@@ -243,7 +237,7 @@ fun PublicationDetailScreen(
     LoadingModal(
         isVisible = isUpdating,
         message = "Actualizando publicación...",
-        timeoutSeconds = 7
+        timeoutSeconds = 5
     )
 
     Scaffold(
@@ -290,10 +284,8 @@ fun PublicationDetailScreen(
                             .background(Color(0xFFF7FAFC))
                             .clickable(
                                 enabled = if (isEditing) {
-                                    // En modo edición: abre el selector de imágenes
                                     !isUpdating
                                 } else {
-                                    // En modo visualización: abre el visor de imagen completa
                                     true
                                 }
                             ) {
@@ -325,7 +317,6 @@ fun PublicationDetailScreen(
                             )
                         }
 
-                        // 🔥 Indicador de que la imagen es clickeable (solo en modo visualización)
                         if (!isEditing) {
                             Box(
                                 modifier = Modifier
@@ -345,7 +336,6 @@ fun PublicationDetailScreen(
                         }
                     }
 
-                    // 🔥 Mensaje de validación de imagen
                     Box(
                         modifier = Modifier.fillMaxWidth().height(32.dp),
                         contentAlignment = Alignment.Center
@@ -402,7 +392,6 @@ fun PublicationDetailScreen(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     if (isEditing) {
-                        // 🔥 Campos SIN validación IA, solo formateo
                         CampoEdit(
                             label = "Título",
                             valor = titulo,
@@ -670,12 +659,12 @@ fun PublicationDetailScreen(
                                                             lastAction = "actualizar"
                                                             showSuccess = true
                                                         },
-                                                        onError = { errorMessage -> // 🔥 Recibir el mensaje de error específico
+                                                        onError = { errorMessage ->
                                                             isUpdating = false
                                                             Toast.makeText(
                                                                 context,
-                                                                errorMessage, // 🔥 Usar el mensaje específico del error
-                                                                Toast.LENGTH_LONG // 🔥 Cambiar a LONG para mensajes más largos
+                                                                errorMessage,
+                                                                Toast.LENGTH_LONG
                                                             ).show()
                                                         }
                                                     )
@@ -774,7 +763,6 @@ fun PublicationDetailScreen(
                     Spacer(modifier = Modifier.height(40.dp))
                 }
 
-                // 🔥 Modal de éxito para actualización
                 if (showSuccess && lastAction == "actualizar") {
                     AlertDialog(
                         onDismissRequest = {},
@@ -810,7 +798,6 @@ fun PublicationDetailScreen(
                     )
                 }
 
-                // Alert para eliminación
                 if (showSuccess && lastAction == "eliminar") {
                     AlertTop(
                         message = "Publicación eliminada correctamente",
@@ -987,7 +974,6 @@ fun PublicationDetailScreen(
                                 .clickable { showFullScreenImage = false },
                             contentAlignment = Alignment.Center
                         ) {
-                            // Imagen en pantalla completa
                             Image(
                                 painter = rememberAsyncImagePainter(
                                     model = ImageRequest.Builder(LocalContext.current)
@@ -1004,7 +990,6 @@ fun PublicationDetailScreen(
                                 contentScale = ContentScale.Fit
                             )
 
-                            // Botón para cerrar
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Cerrar visor de imagen",
@@ -1018,7 +1003,6 @@ fun PublicationDetailScreen(
                                     .padding(6.dp)
                             )
 
-                            // Indicador en la parte inferior
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
@@ -1041,7 +1025,6 @@ fun PublicationDetailScreen(
     }
 }
 
-// 🔥 Componente CampoEdit SIN validación IA
 @Composable
 fun CampoEdit(
     label: String,

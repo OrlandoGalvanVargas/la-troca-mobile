@@ -53,7 +53,6 @@ fun TermsAndPoliciesScreen(
                 .background(Color(0xFFF7FAFC))
                 .verticalScroll(rememberScrollState())
         ) {
-            // 📌 Header informativo
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -88,7 +87,6 @@ fun TermsAndPoliciesScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 🔹 Sección 1: Términos de Servicio
             HelpSection(
                 icon = Icons.Default.Description,
                 title = "Términos de Servicio",
@@ -121,7 +119,6 @@ fun TermsAndPoliciesScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 🔹 Sección 2: Política de Privacidad
             HelpSection(
                 icon = Icons.Default.Lock,
                 title = "Política de Privacidad",
@@ -183,7 +180,6 @@ fun TermsAndPoliciesScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 🔹 Sección 3: Derechos del Usuario
             HelpSection(
                 icon = Icons.Default.VerifiedUser,
                 title = "Derechos del Usuario (ARCO)",
@@ -223,7 +219,6 @@ fun TermsAndPoliciesScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 🔹 Sección 4: Menores de Edad
             HelpSection(
                 icon = Icons.Default.ChildCare,
                 title = "Protección de Menores",
@@ -247,12 +242,10 @@ fun TermsAndPoliciesScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 📞 Sección de contacto
             ContactSection()
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Footer
             Text(
                 text = "© 2025 La Troca — Todos los derechos reservados",
                 fontSize = 12.sp,

@@ -22,14 +22,13 @@ import kotlinx.coroutines.delay
 fun LoadingModal(
     isVisible: Boolean,
     message: String = "Cargando...",
-    timeoutSeconds: Int = 10
+    timeoutSeconds: Int = 5
 ) {
     var showTimeoutMessage by remember { mutableStateOf(false) }
 
     LaunchedEffect(isVisible) {
         if (isVisible) {
             showTimeoutMessage = false
-            // Esperar el tiempo especificado
             delay(timeoutSeconds * 1000L)
             showTimeoutMessage = true
         } else {

@@ -37,12 +37,10 @@ fun UserProfileScreen(
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    // 🔥 Estado para debounce del botón de regresar
     var isBackButtonEnabled by remember { mutableStateOf(true) }
 
     val coroutineScope = rememberCoroutineScope()
 
-    // 🔥 Función para manejar el regreso con debounce
     fun handleBackNavigation() {
         if (isBackButtonEnabled) {
             isBackButtonEnabled = false
@@ -147,7 +145,6 @@ fun UserProfileScreen(
                 ) {
                     Spacer(modifier = Modifier.height(32.dp))
 
-                    // 📸 Foto de perfil
                     Box(
                         modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center
@@ -182,7 +179,6 @@ fun UserProfileScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // 👤 Nombre
                     Text(
                         text = name,
                         fontSize = 24.sp,
@@ -193,7 +189,6 @@ fun UserProfileScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // 📍 Ubicación
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center,
@@ -216,7 +211,6 @@ fun UserProfileScreen(
 
                     Spacer(modifier = Modifier.height(40.dp))
 
-                    // 📝 Biografía
                     Text(
                         text = "Biografía",
                         color = Color(0xFFE53935),
@@ -233,7 +227,7 @@ fun UserProfileScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Text(
-                            text = if (bio.isNotEmpty()) bio else "Este usuario no ha agregado una biografía",
+                            text = bio.ifEmpty { "Este usuario no ha agregado una biografía" },
                             color = if (bio.isNotEmpty()) Color(0xFF2D3748) else Color(0xFF718096),
                             fontSize = 15.sp,
                             modifier = Modifier.padding(16.dp)

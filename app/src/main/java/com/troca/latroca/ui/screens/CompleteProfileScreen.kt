@@ -609,7 +609,7 @@ fun CompleteProfileScreen(
     LoadingModal(
         isVisible = uiState is AuthResult.Loading,
         message = "Configurando tu cuenta...",
-        timeoutSeconds = 30
+        timeoutSeconds = 5
     )
 
     if (showLocationSettingsDialog) {

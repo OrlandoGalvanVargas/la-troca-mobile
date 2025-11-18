@@ -141,7 +141,7 @@ fun HomeScreen(
     LoadingModal(
         isVisible = isLoggingOut,
         message = "Cerrando sesión...",
-        timeoutSeconds = 20
+        timeoutSeconds = 5
     )
 
     val filteredPublicaciones by remember(publicaciones, searchQuery) {

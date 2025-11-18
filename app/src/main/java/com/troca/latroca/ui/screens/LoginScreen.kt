@@ -64,11 +64,9 @@ fun LoginScreen(
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    // 🆕 Gestor de primera vez
     val firstTimeManager = remember { FirstTimeManager(context) }
     var showWelcomeModal by remember { mutableStateOf(false) }
 
-    // 🆕 Verificar si es la primera vez
     LaunchedEffect(Unit) {
         showWelcomeModal = firstTimeManager.isFirstTime()
     }
@@ -135,7 +133,6 @@ fun LoginScreen(
 
                 Log.e("LoginScreen", "Error completo: $errorMessage")
 
-                // 🔴 Cuenta desactivada/suspendida
                 if (errorMessage.contains("inactiva", ignoreCase = true) ||
                     errorMessage.contains("suspendida", ignoreCase = true) ||
                     errorMessage.contains("desactivada", ignoreCase = true)) {
@@ -147,7 +144,6 @@ fun LoginScreen(
                     Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
                     authViewModel.resetLoginState()
                 }
-                // 🟡 Google no registrado
                 else if (isGoogleLogin &&
                     (errorMessage.contains("no registrado", ignoreCase = true) ||
                             errorMessage.contains("not found", ignoreCase = true) ||
@@ -165,7 +161,6 @@ fun LoginScreen(
                         popUpTo(0) { inclusive = true }
                     }
                 }
-                // 🔵 Error de conexión
                 else if (errorMessage.contains("network", ignoreCase = true) ||
                     errorMessage.contains("timeout", ignoreCase = true) ||
                     errorMessage.contains("connection", ignoreCase = true)) {
@@ -180,7 +175,6 @@ fun LoginScreen(
                     ).show()
                     Log.e("LoginScreen", "Error de red: $errorMessage")
                 }
-                // 🟠 Error del servidor
                 else if (errorMessage.contains("500", ignoreCase = true) ||
                     errorMessage.contains("502", ignoreCase = true) ||
                     errorMessage.contains("503", ignoreCase = true)) {
@@ -194,7 +188,6 @@ fun LoginScreen(
                         Toast.LENGTH_LONG
                     ).show()
                 }
-                // 🔴 Otros errores (login tradicional)
                 else {
                     isGoogleLogin = false
                     isGoogleLoading = false
@@ -219,14 +212,12 @@ fun LoginScreen(
     val credentialManager = CredentialManager.create(context)
     val auth = Firebase.auth
 
-    // 🚀 Modal de carga
     LoadingModal(
         isVisible = isLoading || isGoogleLoading,
         message = if (isGoogleLogin) "Iniciando sesión con Google..." else "Iniciando sesión...",
-        timeoutSeconds = 10
+        timeoutSeconds = 5
     )
 
-    // 🎨 UI Principal sin scroll
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -240,7 +231,6 @@ fun LoginScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Logo
             Image(
                 painter = painterResource(id = R.drawable.la_troca_logo),
                 contentDescription = "Logo La Troca",
@@ -264,7 +254,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Correo
             OutlinedTextField(
                 value = email,
                 onValueChange = { newEmail ->
@@ -296,17 +285,15 @@ fun LoginScreen(
                     cursorColor = Color(0xFFE53935),
                     errorBorderColor = Color.Red
                 ),
-                // 🔥 NUEVO: Icono a la izquierda
                 leadingIcon = {
                     Icon(
-                        painter = painterResource(id = R.drawable.email_input), // Necesitarás crear este icono
+                        painter = painterResource(id = R.drawable.email_input),
                         contentDescription = "Correo electrónico",
                         tint = if (emailError.isNotBlank() || credentialsError) Color.Red else
                             if (email.isNotEmpty()) Color(0xFFE53935) else Color(0xFF718096),
                         modifier = Modifier.size(20.dp)
                     )
                 },
-                // 🔥 NUEVO: Placeholder personalizado
                 placeholder = {
                     Text(
                         text = "ejemplo@correo.com",
@@ -329,7 +316,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Contraseña
             OutlinedTextField(
                 value = password,
                 onValueChange = { newPassword ->
@@ -358,17 +344,15 @@ fun LoginScreen(
                     cursorColor = Color(0xFFE53935),
                     errorBorderColor = Color.Red
                 ),
-                // 🔥 NUEVO: Icono a la izquierda
                 leadingIcon = {
                     Icon(
-                        painter = painterResource(id = R.drawable.password_input), // Necesitarás crear este icono
+                        painter = painterResource(id = R.drawable.password_input),
                         contentDescription = "Contraseña",
                         tint = if (credentialsError) Color.Red else
                             if (password.isNotEmpty()) Color(0xFFE53935) else Color(0xFF718096),
                         modifier = Modifier.size(24.dp)
                     )
                 },
-                // 🔥 NUEVO: Placeholder personalizado
                 placeholder = {
                     Text(
                         text = "Ingresa tu contraseña",
@@ -376,7 +360,6 @@ fun LoginScreen(
                         fontSize = 14.sp
                     )
                 },
-                // 🔥 NUEVO: Icono de visibilidad a la derecha (ya existente)
                 trailingIcon = {
                     IconButton(
                         onClick = { passwordVisible = !passwordVisible },
@@ -405,7 +388,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Botón Iniciar sesión
             Button(
                 onClick = {
                     if (isFormValid) {
@@ -434,7 +416,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Divider
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -451,7 +432,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 🆕 Botón de Google con texto
             OutlinedButton(
                 onClick = {
                     if (!isLoading && !isGoogleLoading) {
@@ -593,7 +573,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Registro
             Row(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
@@ -622,7 +601,6 @@ fun LoginScreen(
                 }
             }
         }
-        // 🆕 ✅ AGREGAR ESTO: Modal de bienvenida
         WelcomeModal(
             isVisible = showWelcomeModal,
             onDismiss = {

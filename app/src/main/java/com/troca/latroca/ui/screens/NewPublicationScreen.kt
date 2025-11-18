@@ -121,7 +121,6 @@ private fun getRealLocation(
     }
 }
 
-// Función para formatear título (máx 30 chars, sin saltos de línea)
 private fun formatTituloText(currentText: String, newText: String): String {
     if (newText.isEmpty()) return ""
     if (newText.length < currentText.length) return newText
@@ -148,7 +147,6 @@ private fun formatTituloText(currentText: String, newText: String): String {
     return result.toString()
 }
 
-// Función para formatear descripción (máx 120 chars, sin saltos manuales)
 private fun formatDescripcionText(currentText: String, newText: String): String {
     if (newText.isEmpty()) return ""
     if (newText.length < currentText.length) return newText
@@ -178,7 +176,6 @@ private fun formatDescripcionText(currentText: String, newText: String): String 
     return result.toString()
 }
 
-// Función para formatear necesidad (máx 120 chars, sin saltos manuales)
 private fun formatNecesidadText(currentText: String, newText: String): String {
     if (newText.isEmpty()) return ""
     if (newText.length < currentText.length) return newText
@@ -220,7 +217,6 @@ fun NewPublicationScreen(
 
     var isBackButtonEnabled by remember { mutableStateOf(true) }
 
-    // Estados del formulario
     var titulo by remember { mutableStateOf("") }
     var descripcion by remember { mutableStateOf("") }
     var categoria by remember { mutableStateOf("") }
@@ -230,11 +226,9 @@ fun NewPublicationScreen(
     var longitude by remember { mutableStateOf(0.0) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Solo validación IA para imagen
     var imagenSegura by remember { mutableStateOf<Boolean?>(null) }
     var isValidatingImage by remember { mutableStateOf(false) }
 
-    // Estados de UI
     var isGettingLocation by remember { mutableStateOf(false) }
     var isPublishing by remember { mutableStateOf(false) }
     var showImagePicker by remember { mutableStateOf(false) }
@@ -254,17 +248,14 @@ fun NewPublicationScreen(
         }
     }
 
-    // ✅ CÓDIGO NUEVO (USAR ESTE):
     var photoUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Función para generar un nuevo URI de foto cada vez
     fun generateNewPhotoUri(): Uri {
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val photoFile = File(context.cacheDir, "JPEG_${timeStamp}_${UUID.randomUUID()}.jpg")
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
     }
 
-    // Launchers
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -297,7 +288,6 @@ fun NewPublicationScreen(
         }
     }
 
-    // ✅ CÓDIGO NUEVO (USAR ESTE):
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success && photoUri != null) {
             selectedImageUri = photoUri
@@ -308,7 +298,6 @@ fun NewPublicationScreen(
         uri?.let { selectedImageUri = it }
     }
 
-// ✅ CÓDIGO NUEVO (USAR ESTE):
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             photoUri = generateNewPhotoUri()
@@ -358,7 +347,6 @@ fun NewPublicationScreen(
         }
     }
 
-    // Validación IA solo para imagen
     LaunchedEffect(selectedImageUri) {
         imagenSegura = null
         val uri = selectedImageUri ?: return@LaunchedEffect
@@ -375,7 +363,6 @@ fun NewPublicationScreen(
         }
     }
 
-    // Validar formulario completo
     val isFormComplete = titulo.isNotBlank() &&
             descripcion.isNotBlank() &&
             categoria.isNotBlank() &&
@@ -392,7 +379,7 @@ fun NewPublicationScreen(
     LoadingModal(
         isVisible = isPublishing,
         message = "Publicando tu producto...",
-        timeoutSeconds = 7
+        timeoutSeconds = 5
     )
 
     if (showLocationSettingsDialog) {
@@ -501,7 +488,6 @@ fun NewPublicationScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
-            // Foto del producto
             Text(
                 "Foto del producto",
                 fontSize = 14.sp,
@@ -537,7 +523,6 @@ fun NewPublicationScreen(
                     Text("Agregar foto", fontSize = 14.sp, color = Color(0xFF718096))
                 }
             }
-// 🔥 Mensaje de validación de imagen
             Box(
                 modifier = Modifier.fillMaxWidth().height(32.dp),
                 contentAlignment = Alignment.Center
@@ -604,7 +589,6 @@ fun NewPublicationScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Campo Título
             CampoTexto(
                 label = "Título",
                 valor = titulo,
@@ -618,7 +602,6 @@ fun NewPublicationScreen(
                 }
             }
 
-            // Campo Descripción
             CampoTexto(
                 label = "Descripción",
                 valor = descripcion,
@@ -632,7 +615,6 @@ fun NewPublicationScreen(
                 }
             }
 
-            // Categoría
             Text(
                 "Categoría",
                 fontSize = 14.sp,
@@ -682,7 +664,6 @@ fun NewPublicationScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Campo Necesidad
             CampoTexto(
                 label = "Necesidad (qué buscas)",
                 valor = necesidad,
@@ -696,7 +677,6 @@ fun NewPublicationScreen(
                 }
             }
 
-            // Ubicación
             Text(
                 "Ubicación",
                 fontSize = 14.sp,
@@ -751,7 +731,6 @@ fun NewPublicationScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Botón publicar
             Button(
                 onClick = {
                     val emptyFields = mutableListOf<String>()

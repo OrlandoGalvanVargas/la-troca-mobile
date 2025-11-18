@@ -9,18 +9,18 @@ import kotlinx.coroutines.launch
 
 fun Modifier.clickableOnce(
     enabled: Boolean = true,
-    debounceTime: Long = 500L, // 500ms de delay
+    debounceTime: Long = 500L,
     onClick: () -> Unit
 ): Modifier = composed {
     var isClickable by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope() // 👈 Usar scope del composable
+    val scope = rememberCoroutineScope()
 
     this.clickable(enabled = enabled && isClickable) {
         if (isClickable) {
             isClickable = false
             onClick()
 
-            scope.launch { // 👈 En vez de GlobalScope
+            scope.launch {
                 delay(debounceTime)
                 isClickable = true
             }

@@ -7,18 +7,26 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:258747975411:android:42651e098abf70bef0d986",
+        "mobilesdk_app_id": "1:258747975411:android:076d6e6bc59a0e30f0d986",
         "android_client_info": {
-          "package_name": "com.example.latroca"
+          "package_name": "com.troca.latroca"
         }
       },
       "oauth_client": [
         {
-          "client_id": "258747975411-p6dc4pjt8a24ldjnhbj2b1rsukr11437.apps.googleusercontent.com",
+          "client_id": "258747975411-pa82m3vtiofpiu0jnfp1piv21t2ifpuh.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.latroca",
+            "package_name": "com.troca.latroca",
             "certificate_hash": "d5e8e5a38f20ba6bb24fc3db5051e89fc5a5fcaa"
+          }
+        },
+        {
+          "client_id": "258747975411-r4hpuurhuvnn4amtv3hju2tv036ba0hm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.troca.latroca",
+            "certificate_hash": "fc90cc1e4b0b3a3cf5daae041566bd413f911e92"
           }
         },
         {

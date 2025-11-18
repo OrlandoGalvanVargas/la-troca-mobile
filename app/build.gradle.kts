@@ -3,27 +3,28 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
- //   id("com.google.dagger.hilt.android")
-  //  kotlin("kapt")
 }
 
 android {
-    namespace = "com.example.latroca"
+    namespace = "com.troca.latroca"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.latroca"
+        applicationId = "com.troca.latroca"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 12
+        versionName = "2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
     }
-
+    signingConfigs {
+        create("release") {
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -32,6 +33,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            isMinifyEnabled = false
+            isDebuggable = true
         }
     }
     compileOptions {
@@ -61,19 +66,31 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0-beta01")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
-    implementation("androidx.compose.ui:ui-android:1.7.0") //LocalContext
-    implementation("androidx.activity:activity-compose:1.9.0") //setContent
+    implementation("androidx.compose.ui:ui-android:1.7.0")
+    implementation("androidx.activity:activity-compose:1.9.0")
 
     implementation(platform("com.google.firebase:firebase-bom:34.4.0"))
     implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-firestore-ktx:25.0.0")
+
+    // Notificaciones
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation(libs.androidx.core.ktx)
 
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.5.0")
+
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.navigation:navigation-compose:2.7.5")
+    implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.coil-kt:coil-gif:2.5.0")
     // Core & Lifecycle
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
     implementation("androidx.activity:activity-compose:1.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // Jetpack Compose
     implementation(platform("androidx.compose:compose-bom:2023.10.01"))
@@ -85,11 +102,8 @@ dependencies {
 
     // Compose Navigation
     implementation("androidx.navigation:navigation-compose:2.7.2")
-
-    // Hilt
-//    implementation("com.google.dagger:hilt-android:2.48")
-//    kapt("com.google.dagger:hilt-android-compiler:2.48")
-//    implementation("androidx.hilt:hilt-navigation-compose:1.0.0")
+    implementation("com.google.firebase:firebase-auth-ktx:23.2.1")
+    implementation(libs.firebase.messaging.ktx)
 
     // Testing
     testImplementation("junit:junit:4.13.2")

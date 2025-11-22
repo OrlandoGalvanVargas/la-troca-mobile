@@ -98,4 +98,9 @@ interface AuthApi {
         @Path("id") userId: String
     ): Response<DeleteUserResponse>
 
+    @DELETE("api/Admin/me")
+    suspend fun deleteMyAccount(
+        @Header("Authorization") token: String
+    ): Response<AuthResponse>
+
 }

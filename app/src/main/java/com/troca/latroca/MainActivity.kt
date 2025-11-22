@@ -17,11 +17,14 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.datadog.android.rum.GlobalRumMonitor
+import com.datadog.android.rum.RumActionType
 import com.troca.latroca.data.local.TokenManager
 import com.troca.latroca.ui.screens.TermsAndPoliciesScreen
 import com.google.firebase.messaging.FirebaseMessaging
@@ -55,7 +58,29 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
+// 🔥 TRACKING: Observar cambios de navegación
+                    DisposableEffect(navController) {
+                        val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+                            val screenName = destination.route ?: "unknown"
 
+                            GlobalRumMonitor.get().addAction(
+                                type = RumActionType.CUSTOM,
+                                name = "navigation",
+                                attributes = mapOf(
+                                    "destination" to screenName,
+                                    "timestamp" to System.currentTimeMillis()
+                                )
+                            )
+
+                            Log.d("DatadogRUM", "📍 Navegación a: $screenName")
+                        }
+
+                        navController.addOnDestinationChangedListener(listener)
+
+                        onDispose {
+                            navController.removeOnDestinationChangedListener(listener)
+                        }
+                    }
                     val authRepository = remember { AuthRepository() }
                     val postRepository = remember { PostRepository() }
                     val tokenManager = remember { TokenManager(applicationContext) }
@@ -240,7 +265,13 @@ class MainActivity : ComponentActivity() {
                         composable("deleteAccount") {
                             DeleteAccountScreen(
                                 navController = navController,
-                                authViewModel = authViewModel
+                                authViewModel = authViewModel,
+                                onAccountDeleted = {
+                                    // 🆕 Limpiar todos los ViewModels antes de hacer logout
+                                    registrationViewModel.resetState()
+                                    postViewModel.clearPosts()
+                                    // El authViewModel.logout() se ejecuta dentro del DeleteAccountScreen
+                                }
                             )
                         }
 

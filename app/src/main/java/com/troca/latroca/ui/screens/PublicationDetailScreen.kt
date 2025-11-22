@@ -167,6 +167,7 @@ fun PublicationDetailScreen(
     var isValidatingImage by remember { mutableStateOf(false) }
 
     var photoUri by remember { mutableStateOf<Uri?>(null) }
+    var isLoadingChat by remember { mutableStateOf(false) }
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success && photoUri != null) {
@@ -239,7 +240,12 @@ fun PublicationDetailScreen(
         message = "Actualizando publicación...",
         timeoutSeconds = 5
     )
-
+    // ✅ AGREGAR: LoadingModal para la operación completa
+    LoadingModal(
+        isVisible = isLoadingChat,
+        message = "Creando conversación...",
+        timeoutSeconds = 5 // Un poco más de tiempo para operaciones de red
+    )
     Scaffold(
         topBar = {
             TopAppBar(
@@ -562,6 +568,9 @@ fun PublicationDetailScreen(
 
                             Button(
                                 onClick = {
+                                    // ✅ Activar loading
+                                    isLoadingChat = true
+
                                     val currentUserId = authViewModel.getUserId()
                                     val currentUserName = authViewModel.userProfile.value?.name ?: "Usuario"
                                     val otherUserId = post.userId
@@ -576,6 +585,8 @@ fun PublicationDetailScreen(
                                         postTitle = post.titulo,
                                         postImageUrl = post.fotosUrl.firstOrNull() ?: ""
                                     ) { chatId ->
+                                        // ✅ Desactivar loading cuando termine
+                                        isLoadingChat = false
                                         navController.navigate(
                                             "chat_conversation/$chatId/$otherUserName/$otherUserId"
                                         )
@@ -587,16 +598,27 @@ fun PublicationDetailScreen(
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF2196F3)
                                 ),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(12.dp),
+                                enabled = !isLoadingChat // ✅ Deshabilitar botón mientras carga
+
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Chat,
-                                    contentDescription = "Chat",
-                                    tint = Color.White
-                                )
+                                if (isLoadingChat) {
+                                    // ✅ Mostrar indicador de carga en el botón
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Chat,
+                                        contentDescription = "Chat",
+                                        tint = Color.White
+                                    )
+                                }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Abrir chat",
+                                    text = if (isLoadingChat) "Creando chat..." else "Abrir chat",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color.White

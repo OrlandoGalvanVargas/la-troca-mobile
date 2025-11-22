@@ -90,13 +90,7 @@ fun ChatConversationScreen(
         chatViewModel.listenToTypingStatus(chatId, otherUserId)
     }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            coroutineScope.launch {
-                listState.animateScrollToItem(messages.size - 1)
-            }
-        }
-    }
+
 
     DisposableEffect(Unit) {
         onDispose {
@@ -110,7 +104,9 @@ fun ChatConversationScreen(
             chatViewModel.clearError()
         }
     }
-
+    LaunchedEffect(messages.size) {
+        listState.animateScrollToItem(0)
+    }
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -274,9 +270,10 @@ fun ChatConversationScreen(
                             start = 16.dp,
                             end = 16.dp,
                             top = 12.dp,
-                            bottom = 12.dp
+                            bottom = 80.dp
                         ),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.Bottom,  // ← Los nuevos mensajes van abajo
+                        reverseLayout = true                       // ← Invierte el orden visual
                     ) {
                         items(
                             items = messages,

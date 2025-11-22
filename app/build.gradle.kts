@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
+    id("com.datadoghq.dd-sdk-android-gradle-plugin")
 }
 
 android {
@@ -13,8 +14,8 @@ android {
         applicationId = "com.troca.latroca"
         minSdk = 30
         targetSdk = 35
-        versionCode = 12
-        versionName = "2.1"
+        versionCode = 16
+        versionName = "2.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -61,6 +62,13 @@ android {
 }
 
 dependencies {
+    // Datadog - ACTUALIZAR VERSIONES
+    // 🔥 DATADOG - Versiones actualizadas
+    implementation("com.datadoghq:dd-sdk-android-rum:3.2.0")
+    implementation("com.datadoghq:dd-sdk-android-logs:3.2.0")
+    implementation("com.datadoghq:dd-sdk-android-trace:3.2.0")
+    implementation("com.datadoghq:dd-sdk-android-core:3.2.0") // ⬅️ AÑADE ESTA LÍNEA
+
     // Dependencias faltantes
     implementation("androidx.credentials:credentials:1.6.0-beta01")
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0-beta01")

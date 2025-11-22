@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -145,7 +146,8 @@ fun CompleteProfileScreen(
     var showSuccessDialog by remember { mutableStateOf(false) }
     var showImageErrorDialog by remember { mutableStateOf(false) }
     var showLocationSettingsDialog by remember { mutableStateOf(false) }
-
+    // 🔥 NUEVO: Estado para el diálogo de confirmación de salida
+    var showExitConfirmation by remember { mutableStateOf(false) }
     var hasNotificationPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
@@ -191,6 +193,11 @@ fun CompleteProfileScreen(
                     latitude != 0.0 &&
                     longitude != 0.0
         }
+    }
+
+    // 🔥 NUEVO: Manejar el botón físico de regreso
+    BackHandler(enabled = true) {
+        showExitConfirmation = true
     }
 
     LaunchedEffect(registrationData.imageUri) {
@@ -369,6 +376,75 @@ fun CompleteProfileScreen(
                 showManualPermissionDialog = true
             }
         }
+    }
+
+    // 🔥 NUEVO: Diálogo de confirmación para salir
+    if (showExitConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showExitConfirmation = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.ExitToApp,
+                    contentDescription = null,
+                    tint = Color(0xFFE53935),
+                    modifier = Modifier.size(48.dp)
+                )
+            },
+            title = {
+                Text(
+                    "¿Salir del registro?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Si sales ahora, perderás todo el progreso",
+                        fontSize = 14.sp,
+                        color = Color(0xFF718096),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "¿Estás seguro de que quieres salir?",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF2D3748),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showExitConfirmation = false
+                        // 🔥 Regresar al login
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Sí, salir", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showExitConfirmation = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Continuar registro")
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 
     if (showManualPermissionDialog) {

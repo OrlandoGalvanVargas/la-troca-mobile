@@ -234,6 +234,22 @@ class AuthViewModel(
             }
         }
     }
+    fun deleteMyAccount() {
+        viewModelScope.launch {
+            try {
+                val token = getToken()
+                if (token.isNullOrBlank()) {
+                    _loginState.value = AuthResult.Error("No hay token disponible")
+                    return@launch
+                }
+
+                val result = authRepository.deleteMyAccount(token)
+                _loginState.value = result
+            } catch (e: Exception) {
+                _loginState.value = AuthResult.Error("Error: ${e.message}")
+            }
+        }
+    }
 
     fun updateProfile(
         nombre: String?,

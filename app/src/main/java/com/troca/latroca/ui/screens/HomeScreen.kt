@@ -4,12 +4,14 @@ import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,7 +43,9 @@ import com.troca.latroca.ui.viewmodels.ChatViewModel
 import com.troca.latroca.ui.viewmodels.PostViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
+import com.datadog.android.rum.GlobalRumMonitor
+import com.datadog.android.rum.RumActionType
+import com.datadog.android.rum.RumResourceKind
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -51,6 +55,34 @@ fun HomeScreen(
     postViewModel: PostViewModel,
     chatViewModel: ChatViewModel
 ) {
+    // 🔥 TRACKING: Registrar entrada a la pantalla Home
+    DisposableEffect(Unit) {
+        val startTime = System.currentTimeMillis()
+
+        GlobalRumMonitor.get().startView(
+            key = "home_screen",
+            name = "Home",
+            attributes = mapOf(
+                "screen_name" to "Home",
+                "user_id" to authViewModel.getUserId()
+            )
+        )
+
+        Log.d("DatadogRUM", "📱 Vista Home iniciada")
+
+        onDispose {
+            val timeSpent = System.currentTimeMillis() - startTime
+            GlobalRumMonitor.get().stopView(
+                key = "home_screen",
+                attributes = mapOf(
+                    "time_spent_ms" to timeSpent,
+                    "time_spent_seconds" to (timeSpent / 1000)
+                )
+            )
+            Log.d("DatadogRUM", "📱 Vista Home cerrada - Tiempo: ${timeSpent/1000}s")
+        }
+    }
+
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
 
@@ -78,30 +110,58 @@ fun HomeScreen(
 
     val currentUserId = authViewModel.getUserId()
     var searchQuery by remember { mutableStateOf("") }
-    var hasLoadedOnce by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf("Todas") }
+    var showCategoryMenu by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
 
     var showLogoutDialog by remember { mutableStateOf(false) }
     var isLoggingOut by remember { mutableStateOf(false) }
+    val isRefreshingInBackground by postViewModel.isRefreshingInBackground.collectAsState()
 
     val gridState = rememberLazyGridState()
+
+    val categorias = listOf(
+        "Todas",
+        "Electrónicos",
+        "Muebles",
+        "Ropa y Accesorios",
+        "Deportes y Fitness",
+        "Libros y Revistas",
+        "Juguetes y Juegos",
+        "Hogar y Jardín",
+        "Herramientas",
+        "Vehículos y Accesorios",
+        "Arte y Manualidades",
+        "Música e Instrumentos",
+        "Mascotas y Accesorios",
+        "Alimentos y Bebidas",
+        "Salud y Belleza",
+        "Otro"
+    )
 
     LaunchedEffect(Unit) {
         if (drawerState.isOpen) {
             drawerState.close()
         }
     }
+
     fun reloadPosts() {
         if (!token.isNullOrBlank()) {
-            postViewModel.loadPosts(token!!)
+            GlobalRumMonitor.get().addAction(
+                type = RumActionType.TAP,
+                name = "reload_publications",
+                attributes = mapOf(
+                    "current_posts_count" to publicaciones.size
+                )
+            )
+            postViewModel.forceRefresh(token!!)
         }
     }
 
     LaunchedEffect(token) {
-        if (!token.isNullOrBlank() && !hasLoadedOnce) {
+        if (!token.isNullOrBlank()) {
             postViewModel.loadPosts(token!!)
             authViewModel.loadUserProfile()
-            hasLoadedOnce = true
         }
     }
 
@@ -117,13 +177,64 @@ fun HomeScreen(
             focusManager.clearFocus()
         }
     }
+// 🔥 DATADOG: Actualizar info del usuario cuando carga el perfil
+    LaunchedEffect(userProfile) {
+        if (userProfile != null) {
+            GlobalRumMonitor.get().apply {
+                addAttribute("user_name", userProfile!!.name)
+                addAttribute("user_email", userProfile!!.email)
+                addAttribute("user_role", userRole ?: "user")
+                addAttribute("has_profile_picture", (userProfile!!.profilePicUrl?.isNotEmpty() == true).toString())
+                addAttribute("posts_count", publicaciones.count { it.userId == currentUserId }.toString())
+            }
 
+            Log.d("DatadogRUM", "👤 Perfil de usuario actualizado en Datadog")
+        }
+    }
+    // 🔥 DATADOG: Track errores al cargar publicaciones
+    LaunchedEffect(error) {
+        if (!error.isNullOrBlank()) {
+            GlobalRumMonitor.get().addAction(
+                type = RumActionType.CUSTOM,
+                name = "load_posts_error",
+                attributes = mapOf(
+                    "error_message" to error,
+                    "user_id" to currentUserId
+                )
+            )
+
+            Log.e("DatadogRUM", "❌ Error cargando publicaciones: $error")
+        }
+    }
     fun processLogout() {
         coroutineScope.launch {
             try {
                 isLoggingOut = true
+                // 🔥 DATADOG: Registrar logout
+                GlobalRumMonitor.get().addAction(
+                    type = RumActionType.TAP,
+                    name = "logout",
+                    attributes = mapOf(
+                        "user_id" to currentUserId,
+                        "source" to "home_screen"
+                    )
+                )
                 onLogout()
                 delay(500)
+
+                // 🔥 DATADOG: Limpiar atributos del usuario
+                GlobalRumMonitor.get().apply {
+                    removeAttribute("user_id")
+                    removeAttribute("user_email")
+                    removeAttribute("user_name")
+                    removeAttribute("user_role")
+                    removeAttribute("login_method")
+                    removeAttribute("has_profile_picture")
+                    removeAttribute("posts_count")
+                }
+
+                Log.d("DatadogRUM", "👤 Atributos de usuario eliminados de Datadog")
+
                 isLoggingOut = false
                 showLogoutDialog = false
                 showSuccessDialog = true
@@ -144,17 +255,23 @@ fun HomeScreen(
         timeoutSeconds = 5
     )
 
-    val filteredPublicaciones by remember(publicaciones, searchQuery) {
+    val filteredPublicaciones by remember(publicaciones, searchQuery, selectedCategory) {
         derivedStateOf {
-            if (searchQuery.isEmpty()) {
-                publicaciones
-            } else {
+            var filtered = publicaciones
+
+            if (searchQuery.isNotEmpty()) {
                 val query = searchQuery.trim().lowercase()
-                publicaciones.filter { publicacion ->
+                filtered = filtered.filter { publicacion ->
                     publicacion.titulo.lowercase().contains(query) ||
                             publicacion.categoria.lowercase().contains(query)
                 }
             }
+
+            if (selectedCategory != "Todas") {
+                filtered = filtered.filter { it.categoria == selectedCategory }
+            }
+
+            filtered
         }
     }
 
@@ -176,21 +293,41 @@ fun HomeScreen(
             ) {
                 DrawerContent(
                     onHomeClick = {
+                        GlobalRumMonitor.get().addAction(
+                            type = RumActionType.TAP,
+                            name = "drawer_navigation",
+                            attributes = mapOf("destination" to "home")
+                        )
                         scope.launch { drawerState.close() }
                     },
                     onMessagesClick = {
+                        GlobalRumMonitor.get().addAction(
+                            type = RumActionType.TAP,
+                            name = "drawer_navigation",
+                            attributes = mapOf("destination" to "chat_list")
+                        )
                         scope.launch {
                             drawerState.close()
                             navController.navigate("chat_list")
                         }
                     },
                     onUsersClick = {
+                        GlobalRumMonitor.get().addAction(
+                            type = RumActionType.TAP,
+                            name = "drawer_navigation",
+                            attributes = mapOf("destination" to "admin_users")
+                        )
                         scope.launch {
                             drawerState.close()
                             navController.navigate("admin_users")
                         }
                     },
                     onConfigClick = {
+                        GlobalRumMonitor.get().addAction(
+                            type = RumActionType.TAP,
+                            name = "drawer_navigation",
+                            attributes = mapOf("destination" to "settings")
+                        )
                         scope.launch {
                             drawerState.close()
                             navController.navigate("settings")
@@ -276,7 +413,14 @@ fun HomeScreen(
             },
             floatingActionButton = {
                 FloatingActionButton(
-                    onClick = { navController.navigate("newPublication") },
+                    onClick = { GlobalRumMonitor.get().addAction(
+                        type = RumActionType.TAP,
+                            name = "create_new_publication",
+                        attributes = mapOf(
+                            "source" to "home_fab"
+                        )
+                    )
+                        navController.navigate("newPublication") },
                     containerColor = Color(0xFF4CAF50),
                     contentColor = Color.White,
                     modifier = Modifier.size(56.dp)
@@ -295,9 +439,24 @@ fun HomeScreen(
                     .padding(paddingValues)
                     .background(Color(0xFFF7FAFC))
             ) {
+                // Campo de búsqueda
                 OutlinedTextField(
                     value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    onValueChange = { newQuery ->
+                        searchQuery = newQuery
+
+                        // Track la acción de búsqueda
+                        if (newQuery.isNotEmpty()) {
+                            GlobalRumMonitor.get().addAction(
+                                type = RumActionType.CUSTOM,
+                                name = "search_publications",
+                                attributes = mapOf(
+                                    "search_query" to newQuery,
+                                    "query_length" to newQuery.length
+                                )
+                            )
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -336,6 +495,224 @@ fun HomeScreen(
                     ),
                     singleLine = true
                 )
+
+                // Filtro de Categoría - Más pegado al input
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 0.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { showCategoryMenu = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (selectedCategory != "Todas")
+                                Color(0xFFE53935).copy(alpha = 0.1f)
+                            else Color.White,
+                            contentColor = if (selectedCategory != "Todas")
+                                Color(0xFFE53935)
+                            else Color(0xFF2D3748)
+                        ),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(
+                            width = 1.5.dp,
+                            brush = androidx.compose.ui.graphics.SolidColor(
+                                if (selectedCategory != "Todas")
+                                    Color(0xFFE53935)
+                                else Color(0xFFE2E8F0)
+                            )
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FilterList,
+                                    contentDescription = "Categoría",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (selectedCategory == "Todas")
+                                        "Categoría"
+                                    else selectedCategory,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontWeight = if (selectedCategory != "Todas")
+                                        FontWeight.Bold
+                                    else FontWeight.Normal
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = showCategoryMenu,
+                        onDismissRequest = { showCategoryMenu = false },
+                        modifier = Modifier
+                            .background(Color.White)
+                            .heightIn(max = 400.dp)
+                    ) {
+                        categorias.forEach { categoria ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        if (categoria == selectedCategory) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = Color(0xFFE53935),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                        } else {
+                                            Spacer(modifier = Modifier.width(26.dp))
+                                        }
+                                        Text(
+                                            text = categoria,
+                                            fontSize = 14.sp,
+                                            fontWeight = if (categoria == selectedCategory)
+                                                FontWeight.Bold
+                                            else FontWeight.Normal,
+                                            color = if (categoria == selectedCategory)
+                                                Color(0xFFE53935)
+                                            else Color(0xFF2D3748)
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    val previousCategory = selectedCategory  // ⬅️ Guardar antes
+                                    selectedCategory = categoria
+                                    showCategoryMenu = false
+                                    // Track selección de categoría
+                                    GlobalRumMonitor.get().addAction(
+                                        type = RumActionType.TAP,
+                                        name = "filter_by_category",
+                                        attributes = mapOf(
+                                            "category" to categoria,
+                                            "previous_category" to previousCategory
+                                        )
+                                    )
+                                },
+                                modifier = Modifier.background(
+                                    if (categoria == selectedCategory)
+                                        Color(0xFFE53935).copy(alpha = 0.05f)
+                                    else Color.Transparent
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Chips de filtros activos - Rediseñados para evitar desbordamiento
+                if (selectedCategory != "Todas" || searchQuery.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Filtros activos:",
+                                fontSize = 12.sp,
+                                color = Color(0xFF718096),
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            TextButton(
+                                onClick = {
+                                    selectedCategory = "Todas"
+                                    searchQuery = ""
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    "Limpiar todo",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFE53935),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Chips en una fila con scroll horizontal si es necesario
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (searchQuery.isNotEmpty()) {
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { searchQuery = "" },
+                                    label = {
+                                        Text(
+                                            "Búsqueda: \"${searchQuery.take(15)}${if(searchQuery.length > 15) "..." else ""}\"",
+                                            fontSize = 11.sp
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFFE53935).copy(alpha = 0.1f),
+                                        selectedLabelColor = Color(0xFFE53935)
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        borderColor = Color(0xFFE53935)
+                                    )
+                                )
+                            }
+
+                            if (selectedCategory != "Todas") {
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { selectedCategory = "Todas" },
+                                    label = { Text(selectedCategory, fontSize = 11.sp) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFFE53935).copy(alpha = 0.1f),
+                                        selectedLabelColor = Color(0xFFE53935)
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        borderColor = Color(0xFFE53935)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
 
                 when {
                     isLoading -> {
@@ -478,7 +855,7 @@ fun HomeScreen(
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = if (searchQuery.isNotEmpty())
+                                    text = if (searchQuery.isNotEmpty() || selectedCategory != "Todas")
                                         "No se encontraron resultados"
                                     else
                                         "No hay publicaciones disponibles",
@@ -489,8 +866,8 @@ fun HomeScreen(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = if (searchQuery.isNotEmpty())
-                                        "Intenta con otros términos de búsqueda"
+                                    text = if (searchQuery.isNotEmpty() || selectedCategory != "Todas")
+                                        "Intenta con otros filtros"
                                     else
                                         "Sé el primero en publicar algo",
                                     fontSize = 14.sp,
@@ -498,7 +875,7 @@ fun HomeScreen(
                                     textAlign = TextAlign.Center
                                 )
 
-                                if (searchQuery.isEmpty()) {
+                                if (searchQuery.isEmpty() && selectedCategory == "Todas") {
                                     Spacer(modifier = Modifier.height(24.dp))
                                     OutlinedButton(
                                         onClick = { reloadPosts() },
@@ -592,14 +969,22 @@ fun HomeScreen(
                                     publicacion = publicationData,
                                     esPropia = esPropia,
                                     onClick = {
+// Track click en publicación
+                                        GlobalRumMonitor.get().addAction(
+                                            type = RumActionType.TAP,
+                                            name = "view_publication",
+                                            attributes = mapOf(
+                                                "publication_id" to publicacion.id,
+                                                "publication_title" to publicacion.titulo,
+                                                "publication_category" to publicacion.categoria,
+                                                "is_own_post" to esPropia
+                                            )
+                                        )
+
                                         navController.navigate("publicationDetail/${publicacion.id}")
                                     }
                                 )
                             }
-
-
-
-
                         }
                     }
                 }
@@ -623,46 +1008,73 @@ fun HomeScreen(
                     text = "¿Cerrar sesión?",
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             text = {
                 Text(
                     text = "¿Estás seguro de que quieres cerrar sesión?",
                     textAlign = TextAlign.Center,
-                    fontSize = 15.sp
+                    fontSize = 15.sp,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             confirmButton = {
-                Button(
-                    onClick = { processLogout() },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFE53E3E)
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    enabled = !isLoggingOut
+                // 🆕 Layout responsivo para botones
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Sí, cerrar sesión", fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = { processLogout() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE53E3E)
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        enabled = !isLoggingOut
+                    ) {
+                        Text(
+                            "Sí, cerrar sesión",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = { showLogoutDialog = false },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF2D3748)
+                        ),
+                        enabled = !isLoggingOut
+                    ) {
+                        Text(
+                            "Cancelar",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = { showLogoutDialog = false },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFF2D3748)
-                    ),
-                    enabled = !isLoggingOut
-                ) {
-                    Text("Cancelar")
-                }
-            },
+            dismissButton = {}, // Vacío porque los botones están en confirmButton
             containerColor = Color.White,
             tonalElevation = 4.dp,
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.9f) // 90% del ancho en pantallas pequeñas
+                .padding(horizontal = 16.dp)
         )
     }
 
+// 2️⃣ Diálogo de Éxito (mejorado con responsividad)
     if (showSuccessDialog) {
         AlertDialog(
             onDismissRequest = {},
@@ -679,19 +1091,25 @@ fun HomeScreen(
                     "¡Sesión cerrada!",
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             text = {
                 Text(
                     "Has cerrado sesión exitosamente",
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    fontSize = 15.sp,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             confirmButton = {},
             dismissButton = {},
             containerColor = Color.White,
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .padding(horizontal = 16.dp)
         )
     }
 }

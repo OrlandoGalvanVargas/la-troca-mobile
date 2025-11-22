@@ -1,5 +1,6 @@
 package com.troca.latroca.data.repository
 
+import android.util.Log
 import com.troca.latroca.data.api.ApiClient
 import com.troca.latroca.data.models.AdminUserResponse
 import com.troca.latroca.data.models.AuthResponse
@@ -281,6 +282,21 @@ class AuthRepository {
         }
     }
 
+    suspend fun deleteMyAccount(token: String): AuthResult<String> {
+        return try {
+            val response = authApi.deleteMyAccount("Bearer $token")
+
+            if (response.isSuccessful && response.body() != null) {
+                AuthResult.Success("Cuenta eliminada exitosamente")
+            } else {
+                val errorBody = response.errorBody()?.string()
+                AuthResult.Error(errorBody ?: "Error al eliminar la cuenta")
+            }
+        } catch (e: Exception) {
+            Log.e("AuthRepository", "Error eliminando cuenta", e)
+            AuthResult.Error("Error de red: ${e.message}")
+        }
+    }
     suspend fun changePassword(token: String, newPassword: String): AuthResult<String> =
         withContext(Dispatchers.IO) {
             try {

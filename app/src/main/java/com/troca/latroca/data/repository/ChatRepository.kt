@@ -282,7 +282,7 @@ class ChatRepository {
             listenerRegistration = messagesCollection
                 .document(chatId)
                 .collection("messages")
-                .orderBy("timestamp", Query.Direction.ASCENDING)
+                .orderBy("timestamp", Query.Direction.DESCENDING)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
                         Log.e("ChatRepository", "Error listening to messages: ${error.message}", error)

@@ -28,6 +28,8 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.navigation.NavController
+import com.datadog.android.rum.GlobalRumMonitor
+import com.datadog.android.rum.RumActionType
 import com.troca.latroca.R
 import com.troca.latroca.domain.models.AuthResult
 import com.troca.latroca.ui.components.LoadingModal
@@ -39,6 +41,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingExcept
 import com.google.firebase.Firebase
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.auth
+import com.troca.latroca.BuildConfig
 import com.troca.latroca.data.local.FirstTimeManager
 import com.troca.latroca.ui.components.WelcomeModal
 import com.troca.latroca.utils.validateEmailInput
@@ -120,6 +123,27 @@ fun LoginScreen(
         when (loginState) {
             is AuthResult.Success -> {
                 credentialsError = false
+                // 🔥 DATADOG: Identificar usuario al iniciar sesión
+                val userId = authViewModel.getUserId()
+                val userEmail = email.takeIf { it.isNotBlank() } ?: "google_user"
+                // ✅ Método correcto para versión 3.2.0
+                GlobalRumMonitor.get().addAttribute("user_id", userId)
+                GlobalRumMonitor.get().addAttribute("user_email", userEmail)
+                GlobalRumMonitor.get().addAttribute("login_method", if (isGoogleLogin) "google" else "email")
+                GlobalRumMonitor.get().addAttribute("app_version", BuildConfig.VERSION_NAME)
+
+                // Track acción de login exitoso
+                GlobalRumMonitor.get().addAction(
+                    type = RumActionType.CUSTOM,
+                    name = "login_success",
+                    attributes = mapOf(
+                        "login_method" to if (isGoogleLogin) "google" else "email",
+                        "user_id" to userId,
+                        "user_email" to userEmail
+                    )
+                )
+
+                Log.d("DatadogRUM", "👤 Usuario identificado: $userId")
                 authViewModel.resetLoginState()
                 isGoogleLogin = false
                 isGoogleLoading = false
@@ -130,6 +154,21 @@ fun LoginScreen(
             }
             is AuthResult.Error -> {
                 val errorMessage = (loginState as AuthResult.Error).message
+                // 🔥 DATADOG: Track errores de login
+                GlobalRumMonitor.get().addAction(
+                    type = RumActionType.CUSTOM,
+                    name = "login_error",
+                    attributes = mapOf(
+                        "error_message" to errorMessage,
+                        "login_method" to if (isGoogleLogin) "google" else "email",
+                        "error_type" to when {
+                            errorMessage.contains("inactiva", ignoreCase = true) -> "account_inactive"
+                            errorMessage.contains("network", ignoreCase = true) -> "network_error"
+                            errorMessage.contains("500", ignoreCase = true) -> "server_error"
+                            else -> "credentials_error"
+                        }
+                    )
+                )
 
                 Log.e("LoginScreen", "Error completo: $errorMessage")
 
@@ -466,8 +505,10 @@ fun LoginScreen(
                                                 val user = auth.currentUser
                                                 val nombre = user?.displayName ?: ""
                                                 val email = user?.email ?: ""
-                                                val photoUrl = user?.photoUrl
-
+                                                val photoUrl = user?.photoUrl?.toString()?.let { url ->
+                                                    // Cambiar s96-c a s400-c para obtener imagen de 400x400px
+                                                    Uri.parse(url.replace("=s96-c", "=s400-c"))
+                                                }
                                                 authViewModel.loginWithGoogle(googleIdToken)
 
                                                 val randomPassword = (1..12)
